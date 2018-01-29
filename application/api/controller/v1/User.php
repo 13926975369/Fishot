@@ -10,7 +10,9 @@ namespace app\api\controller\v1;
 
 use app\api\controller\BaseController;
 use app\api\exception\ParameterException;
+use app\api\exception\UpdateException;
 use app\api\exception\UserException;
+use app\api\exception\UserExistException;
 use app\api\model\Fishot_user as UserModel;
 use app\api\model\Fishot_relatedmessage as RelatedModel;
 use app\api\model\Fishot_sharemember as MemberModel;
@@ -18,12 +20,13 @@ use app\api\model\Fishot_sharealbum as AlbumModel;
 use app\api\model\Fishot_friend as FriendModel;
 use app\api\service\UserToken as TokenService;
 use app\api\service\Token;
+use think\Request;
 
 class User extends BaseController
 {
     //前置验证
     protected $beforeActionList = [
-        'checkExclusiveScope' => ['only' => 'getuserinfo,showfriend,buildgroup,searchuser,addfriend'],
+        'checkExclusiveScope' => ['only' => 'getuserinfo,showfriend,buildgroup,searchuser,addfriend,change_sign,show_sign,show_background,change_background'],
     ];
 
     /*
@@ -58,10 +61,17 @@ class User extends BaseController
         if($id != 1 && $id != 2){
             throw new ParameterException();
         }
-        $related_information['message'] = RelatedModel::get($id);
-        $msg = [
-            'relatedMessage' => $related_information['message']
-        ];
+        $related_information['message'] = RelatedModel::get(1);
+        if ($id==1){
+            $msg = [
+                'relatedMessage' => $related_information['message']['about_fishot']
+            ];
+        }else{
+            $msg = [
+                'relatedMessage' => $related_information['message']['use_statement']
+            ];
+        }
+
         return json_encode([
             'code' => 200,
             'msg' => $msg
@@ -95,6 +105,7 @@ class User extends BaseController
                 ->select();
         }
         if ($friend_id) {
+            $result = [];
             for ($i = 0; $i < count($friend_id); $i++) {
                 $single_message = $user->where('id', '=', $friend_id[$i]['friend_id'])
                     ->field('id,username,portrait')
@@ -218,6 +229,115 @@ class User extends BaseController
         return json_encode([
             'code' => 200,
             'msg' => 0
+        ]);
+    }
+
+    public function change_sign($sign=''){
+        //拿到用户的id
+        $uid = Token::getCurrentUid();
+        $User = new UserModel();
+        //防XSS
+        $sign = strip_tags($sign);
+        $sign = htmlspecialchars($sign);
+        $result = $User->where('id','=',$uid)
+            ->update([
+                'personality_signature' => $sign
+            ]);
+        if (!$result) throw new UpdateException();
+        return json_encode([
+            'code' => 200,
+            'msg' => 0
+        ]);
+    }
+
+    /**
+     * 显示个性签名
+     * @return string
+     * @throws ParameterException
+     */
+
+    public function show_sign(){
+        //拿用户id
+        $uid = Token::getCurrentUid();
+        $User = new UserModel();
+        $result = $User->where('id','=',$uid)
+            ->field('personality_signature')
+            ->find();
+        if (!$result){
+            throw new ParameterException();
+        }
+        return json_encode([
+            'code' => 200,
+            'msg' => $result['personality_signature']
+        ]);
+    }
+
+    /**
+     * 展示背景图
+     * @return string
+     * @throws ParameterException
+     */
+
+    public function show_background(){
+        //拿用户id
+        $uid = Token::getCurrentUid();
+        $User = new UserModel();
+        $result = $User->where('id','=',$uid)
+            ->field('background')
+            ->find();
+        if (!$result){
+            throw new ParameterException();
+        }
+        $url = 'https://www.yiluzou.cn/Fishot/public/'.$result['background'];
+        return json_encode([
+            'code' => 200,
+            'msg' => $url
+        ]);
+    }
+
+    /**
+     * 修改背景图
+     * @return string
+     * @throws ParameterException
+     * @throws UpdateException
+     * @throws UserExistException
+     */
+
+    public function change_background(){
+        $photo = Request::instance()->file('photo');
+        if (!$photo){
+            throw new UserExistException([
+                'msg' => '请上传图片！'
+            ]);
+        }
+        //给定一个目录
+        $info = $photo->move('upload');
+        if ($info && $info->getPathname()) {
+            $url = $info->getPathname();
+        } else {
+            throw new ParameterException();
+        }
+
+        //拿用户id
+        $uid = Token::getCurrentUid();
+        $User = new UserModel();
+        $u = $User->where('id','=',$uid)
+            ->field('background')
+            ->find();
+        $result = $User->where('id','=',$uid)
+            ->update([
+                'background' => $url
+            ]);
+        if (!$result){
+            unlink(COMMON_PATH."/".$url);
+            throw new UpdateException();
+        }
+        if ($u['background'] != 'upload/default.png'){
+            unlink(COMMON_PATH."/".$u['background']);
+        }
+        return json_encode([
+            'code' => 200,
+            'msg' => '成功'
         ]);
     }
 
