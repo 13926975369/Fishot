@@ -13,8 +13,7 @@ use think\Route;
 
 //Route::post('gettoken','api/v1.Token/getToken');
 Route::post('index','api/v1.Index/index');
-Route::get('indexx','api/v1.Banner/ttt');
-Route::get('index','api/v1.Banner/tttt');
+Route::post('indexx','api/v1.Banner/ttt');
 //Route::get('indexxx','api/v1.Index/test');
 //User
 Route::rule('relatedinformation/:id','api/v1.User/getRelatedInformation','GET',['https' => false]);

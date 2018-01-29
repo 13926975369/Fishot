@@ -20,17 +20,7 @@ class Index extends BaseController
     public function index(){
         $post = input('post.');
         $type = $post['type'];
-        if (!array_key_exists('data',$post)){
-            throw new ParameterException([
-                'msg' => '没有data参数！'
-            ]);
-        }
         $data = $post['data'];
-        if (!array_key_exists('token',$post)){
-            throw new ParameterException([
-                'msg' => '请传入token！'
-            ]);
-        }
         $token_value = $post['token'];
 
         //实例化控制器
@@ -79,66 +69,17 @@ class Index extends BaseController
             elseif ($post['data']=='2') $result = $Image->uploadStory($post['a_id'],$post['time'],'',$post['position'],$post['data']);
             elseif ($post['data']=='3') $result = $Image->uploadStory($post['a_id'],'null',$post['story'],'',$post['data']);
         }elseif ($type == 'A009'){
-            if (!array_key_exists('flag',$data)){
-                throw new ParameterException([
-                    'msg' => 'data中某参数未传递！'
-                ]);
-            }
             if ($data['flag'] == '1'){
-                if (!array_key_exists('s_id',$data)){
-                    throw new ParameterException([
-                        'msg' => 'data中某参数未传递！'
-                    ]);
-                }
                 $result = $Story->ShowStory($data['flag'],'',$data['s_id']);
             }else{
-                if (!array_key_exists('a_id',$data)||!array_key_exists('size',$data)||!array_key_exists('page',$data)
-                    ||!array_key_exists('order',$data)){
-                    throw new ParameterException([
-                        'msg' => 'data中某参数未传递！'
-                    ]);
-                }
                 $result = $Story->ShowStory($data['flag'],$data['a_id'],'',$data['page'],$data['size'],$data['order']);
             }
         }elseif ($type == 'A010'){
-            if (!array_key_exists('s_id',$data)){
-                throw new ParameterException([
-                    'msg' => 'data中某参数未传递！'
-                ]);
-            }
             $result = $Story->DelStory($data['s_id']);
         }elseif ($type == 'A011'){
-            if (!array_key_exists('a_id',$data)||!array_key_exists('size',$data)||!array_key_exists('page',$data)){
-                throw new ParameterException([
-                    'msg' => 'data中某参数未传递！'
-                ]);
-            }
             $result = $Image->ShowAlbumPhoto($data['a_id'],$data['page'],$data['size']);
         }elseif ($type == 'A012'){
-            if (!array_key_exists('a_id',$data)){
-                throw new ParameterException([
-                    'msg' => '未传入a_id！'
-                ]);
-            }
             $result = $Image->ShowAlbumPhotoAll($data['a_id']);
-        }elseif ($type == 'A013'){
-            if (!array_key_exists('personality_signature',$data)){
-                throw new ParameterException([
-                    'msg' => '未传入个性签名！'
-                ]);
-            }
-            $sign = $data['personality_signature'];
-            $result = $User->change_sign($sign);
-        }elseif ($type == 'A014'){
-            $result = $User->show_sign();
-        }elseif ($type == 'A015'){
-            $result = $User->show_background();
-        }elseif ($type == 'A016'){
-            $result = $User->change_background();
-        }else{
-            throw new ParameterException([
-                'msg' => '输入类型有误！'
-            ]);
         }
         return $result;
     }

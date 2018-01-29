@@ -8,7 +8,6 @@
 
 namespace app\api\exception;
 use think\exception\Handle;
-use think\exception\HttpException;
 use think\Request;
 
 class ExceptionHandler extends Handle
@@ -28,12 +27,6 @@ class ExceptionHandler extends Handle
             $this->code = 500;
             $this->msg = '服务器内部错误';
             $this->errorCode = 999;
-            //调试
-            if ($e instanceof HttpException) {
-                return $this->renderHttpException($e);
-            } else {
-                return $this->convertExceptionToResponse($e);
-            }
         }
         $request = Request::instance();
 

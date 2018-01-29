@@ -2,7 +2,6 @@
 namespace app\api\controller\v1;
 use app\api\exception\BannerMissException;
 use app\api\exception\UserException;
-use app\api\model\Fishot_user;
 use app\api\validate\IDMustBePostINT;
 use think\console\command\make\Controller;
 use app\api\validate\BaseValidate;
@@ -54,22 +53,9 @@ class Banner extends \app\api\controller\BaseController
     }
 
     public function ttt(){
-        $User = new Fishot_user();
-        $u = $User->where('id','=',1)
-            ->field('background')
-            ->find();
-        if ($u['background'] != 'upload/default.png'){
-            echo $u['background'];
-//            $uu=preg_replace("/[\\]/","/",$u['background']);
-//            var_dump($uu);
-            unlink(COMMON_PATH."\\".$u['background']);
-        }
-    }
-
-    public function tttt(){
-        return json([
-            'code' => 404,
-            'msg' => '页面丢失！'
-        ],404);
+        $photo = Request::instance()->file('file');
+        var_dump($photo);
+        $info = $photo->move('upload');
+        var_dump(Request::instance()->post('user'));
     }
 }
