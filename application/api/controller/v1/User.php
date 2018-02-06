@@ -14,6 +14,7 @@ use app\api\exception\UpdateException;
 use app\api\exception\UserException;
 use app\api\exception\UserExistException;
 use app\api\model\Fishot_user as UserModel;
+use app\api\model\Image;
 use app\api\model\Fishot_relatedmessage as RelatedModel;
 use app\api\model\Fishot_sharemember as MemberModel;
 use app\api\model\Fishot_sharealbum as AlbumModel;
@@ -243,7 +244,9 @@ class User extends BaseController
             ->update([
                 'personality_signature' => $sign
             ]);
-        if (!$result) throw new UpdateException();
+        if (!$result) throw new UpdateException([
+            'msg' => '更新出错，可能是身份有误！'
+        ]);
         return json_encode([
             'code' => 200,
             'msg' => 0
@@ -264,7 +267,9 @@ class User extends BaseController
             ->field('personality_signature')
             ->find();
         if (!$result){
-            throw new ParameterException();
+            throw new ParameterException([
+                'msg' => '未找到用户，身份出错！'
+            ]);
         }
         return json_encode([
             'code' => 200,
@@ -286,7 +291,9 @@ class User extends BaseController
             ->field('background')
             ->find();
         if (!$result){
-            throw new ParameterException();
+            throw new ParameterException([
+                'msg' => '未找到用户，身份出错！'
+            ]);
         }
         $url = 'https://www.yiluzou.cn/Fishot/public/'.$result['background'];
         return json_encode([
@@ -304,19 +311,8 @@ class User extends BaseController
      */
 
     public function change_background(){
-        $photo = Request::instance()->file('photo');
-        if (!$photo){
-            throw new UserExistException([
-                'msg' => '请上传图片！'
-            ]);
-        }
-        //给定一个目录
-        $info = $photo->move('upload');
-        if ($info && $info->getPathname()) {
-            $url = $info->getPathname();
-        } else {
-            throw new ParameterException();
-        }
+        $image = new Image();
+        $url = $image->upload_image('photo');
 
         //拿用户id
         $uid = Token::getCurrentUid();
@@ -329,15 +325,22 @@ class User extends BaseController
                 'background' => $url
             ]);
         if (!$result){
-            unlink(COMMON_PATH."/".$url);
-            throw new UpdateException();
+            if (is_file(COMMON_PATH."/".$url)){
+                unlink(COMMON_PATH."/".$url);
+            }
+            throw new UpdateException([
+                'msg' => '更新出错，身份不正确！'
+            ]);
         }
         if ($u['background'] != 'upload/default.png'){
-            unlink(COMMON_PATH."/".$u['background']);
+            if (is_file(COMMON_PATH."/".$u['background'])){
+                unlink(COMMON_PATH."/".$u['background']);
+            }
         }
+        $new_url = 'https://www.yiluzou.cn/Fishot/public/'.$url;
         return json_encode([
             'code' => 200,
-            'msg' => '成功'
+            'msg' => $new_url
         ]);
     }
 

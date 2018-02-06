@@ -12,6 +12,7 @@ use app\api\exception\ParameterException;
 use app\api\validate\IDMustBePostINT;
 use app\api\model\Fishot_story as StoryModel;
 use app\api\model\Fishot_user as UserModel;
+use app\api\model\Image;
 use app\api\validate\StoryIdTest;
 use think\Request;
 
@@ -19,7 +20,7 @@ class Story extends BaseController
 {
     //前置验证
     protected $beforeActionList = [
-        'checkShareAlbumScope' => ['only' => 'showstory,delstory'],
+        'checkShareAlbumScope' => ['only' => 'showstory,delstory,change_album_background'],
     ];
 
     /*
@@ -100,5 +101,14 @@ class Story extends BaseController
             ];
             return json_encode($result);
         }
+    }
+
+    //编辑相册的背景图片
+    public function Change_album_background(){
+        //上传背景
+        $Image = new Image();
+        $url = $Image->upload_image('photo');
+
+
     }
 }

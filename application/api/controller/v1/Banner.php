@@ -72,4 +72,12 @@ class Banner extends \app\api\controller\BaseController
             'msg' => '页面丢失！'
         ],404);
     }
+
+    public function sss(){
+        $User = new Fishot_user();
+        $result = $User->where('id','=',2)
+            ->field('personality_signature')
+            ->find();
+        var_dump($result['personality_signature']);
+    }
 }
