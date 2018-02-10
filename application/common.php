@@ -108,3 +108,10 @@ function getRandChars($length){
 
     return $str;
 }
+
+function xss($sign){
+    //防XSS
+    $sign = strip_tags($sign);
+    $sign = htmlspecialchars($sign);
+    return $sign;
+}

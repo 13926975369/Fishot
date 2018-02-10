@@ -9,18 +9,22 @@
 namespace app\api\controller\v1;
 use app\api\controller\BaseController;
 use app\api\exception\ParameterException;
-use app\api\validate\IDMustBePostINT;
+use app\api\exception\UpdateException;
 use app\api\model\Fishot_story as StoryModel;
 use app\api\model\Fishot_user as UserModel;
+use app\api\model\Fishot_sharealbum;
 use app\api\model\Image;
+use app\api\service\Token;
+use app\api\validate\AlbumName;
+use app\api\validate\IDMustBePostINT;
 use app\api\validate\StoryIdTest;
-use think\Request;
+
 
 class Story extends BaseController
 {
     //前置验证
     protected $beforeActionList = [
-        'checkShareAlbumScope' => ['only' => 'showstory,delstory,change_album_background'],
+        'checkShareAlbumScope' => ['only' => 'showstory,delstory,create_album,destroy,change_album_background'],
     ];
 
     /*
@@ -103,12 +107,186 @@ class Story extends BaseController
         }
     }
 
-    //编辑相册的背景图片
-    public function Change_album_background(){
-        //上传背景
-        $Image = new Image();
-        $url = $Image->upload_image('photo');
+    //创建相册
+    public function create_album(){
+//        $post = input('post.');
+//        //数据
+//        $data = [];
+//        //名字和描述
+//        if (array_key_exists('name',$post)){
+//            //防XSS
+//            $name = strip_tags($post['name']);
+//            $name = htmlspecialchars($name);
+//            $data['name'] = $name;
+//        }
+//        if (array_key_exists('statement',$post)){
+//            //防XSS
+//            $statement = strip_tags($post['statement']);
+//            $statement = htmlspecialchars($statement);
+//            $data['statement'] = $statement;
+//        }
+//        if (!array_key_exists('color',$post)){
+//            throw new BaseException([
+//                'msg' => '无颜色传入！'
+//            ]);
+//        }
+//
+//        (new CreateAlbum())->goToCheck($data);
+//
+//
+//        //传图片
+//        $photo = Request::instance()->file('photo');
+//        if ($photo){
+//            //创建相册
+//            $Image = new Image();
+//            $url = $Image->upload_image('photo');
+//            $data['background'] = $url;
+//        }
+//
+//
+        //拿用户id
+        $uid = Token::getCurrentUid();
 
 
+        $sharealbum = new Fishot_sharealbum();
+        $info = $sharealbum->insertGetId([
+            'main_speaker' => $uid
+        ]);
+
+        return json_encode([
+            'code' => 200,
+            'msg' => $info
+        ]);
+    }
+
+    //销毁相册
+    public function destroy($data){
+        if (!array_key_exists('id',$data)){
+            throw new ParameterException([
+                'msg' => '无标识'
+            ]);
+        }
+        //检验
+        (new IDMustBePostINT())->goToCheck($data);
+        $sharealbum = new Fishot_sharealbum();
+        $result = $sharealbum->where([
+            'id' => $data['id']
+        ])->delete();
+        if (!$result){
+            throw new ParameterException();
+        }
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
+        ]);
+    }
+
+    //修改相册的封面
+    public function change_album_background(){
+        $id = input('post.data');
+        (new IDMustBePostINT())->goToCheck([
+            'id' => $id
+        ]);
+
+        $image = new Image();
+        $url = $image->upload_image('photo');
+        $sharealbum = new Fishot_sharealbum();
+        $u = $sharealbum->where('id','=',$id)
+            ->field('background')
+            ->find();
+        $result = $sharealbum->where([
+            'id' => $id
+        ])->update([
+                'background' => $url
+        ]);
+
+        if (!$result){
+            if (is_file(COMMON_PATH."/".$url)){
+                unlink(COMMON_PATH."/".$url);
+            }
+            throw new UpdateException([
+                'msg' => '更新出错，身份不正确！'
+            ]);
+        }
+        if ($u['background'] != 'upload/album.png'){
+            if (is_file(COMMON_PATH."/".$u['background'])){
+                unlink(COMMON_PATH."/".$u['background']);
+            }
+        }
+        $new_url = config('setting.image_root').$url;
+        return json_encode([
+            'code' => 200,
+            'msg' => $new_url
+        ]);
+    }
+
+    //修改相册的名字和描述
+    public function change_album_info($data){
+        if (!array_key_exists('id',$data)){
+            throw new ParameterException([
+                'msg' => '无标识'
+            ]);
+        }
+        if (!array_key_exists('name',$data)){
+            throw new ParameterException([
+                'msg' => '无名字'
+            ]);
+        }
+        if (!array_key_exists('statement',$data)){
+            throw new ParameterException([
+                'msg' => '无描述'
+            ]);
+        }
+
+        (new IDMustBePostINT())->goToCheck($data);
+        (new AlbumName())->goToCheck($data);
+
+        $name = xss($data['name']);
+        $statement = xss($data['statement']);
+
+        $sharealbum = new Fishot_sharealbum();
+        $info = $sharealbum->where([
+            'id' => $data['id']
+        ])->field('group_name,statement')->find();
+        $d['group_name'] = $name;
+        $d['statement'] = $statement;
+        if ($name == $info['group_name']){
+            unset($d['group_name']);
+        }
+        if ($statement == $info['statement']){
+            unset($d['statement']);
+        };
+        if ($d){
+            $result = $sharealbum->where([
+                'id' => $data['id']
+            ])->update($d);
+            if (!$result){
+                throw new UpdateException();
+            }
+        }
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
+        ]);
+    }
+
+    public function  show_album_background($data){
+        if (!array_key_exists('id',$data)){
+            throw new ParameterException([
+                'msg' => '无标识'
+            ]);
+        }
+
+        (new IDMustBePostINT())->goToCheck($data);
+
+        $sharealbum = new Fishot_sharealbum();
+        $url = $sharealbum->where([
+            'id' => $data['id']
+        ])->field('background')->find();
+        $new_url = config('setting.image_root').$url['background'];
+        return json_encode([
+            'code' => 200,
+            'msg' => $new_url
+        ]);
     }
 }

@@ -14,6 +14,7 @@ use app\api\controller\v1\User as user;
 use app\api\controller\v1\Story as Story;
 use app\api\controller\v1\Image as Image;
 use app\api\controller\v1\Token as Token;
+use think\Request;
 
 class Index extends BaseController
 {
@@ -167,18 +168,28 @@ class Index extends BaseController
             $sign = $data['personality_signature'];
             $result = $User->change_sign($sign);
         }elseif ($type == 'A014'){
+            //展示签名
             $result = $User->show_sign();
         }elseif ($type == 'A015'){
+            //展示背景图片
             $result = $User->show_background();
         }elseif ($type == 'A016'){
+            //用户背景图片
             $result = $User->change_background();
         }elseif ($type == 'A017'){
-            //创建相册时编辑相册封面图
-            $result = $Story->Change_album_background();
+            //创建相册id
+            $result = $Story->create_album();
         }elseif ($type == 'A018'){
-            var_dump('lalal');
-            var_dump(input('post.'));
-            $result = input('post.');
+            //删除相册id
+            $result = $Story->destroy($data);
+        }elseif ($type == 'A019'){
+            //相册封面
+            $result = $Story->change_album_background();
+        }elseif ($type == 'A020'){
+            //修改名字和描述
+            $result = $Story->change_album_info($data);
+        }elseif ($type == 'A021'){
+            $result = $Story->show_album_background($data);
         }else{
             throw new ParameterException([
                 'msg' => '输入类型有误！'

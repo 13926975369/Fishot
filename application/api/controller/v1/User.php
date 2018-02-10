@@ -295,7 +295,7 @@ class User extends BaseController
                 'msg' => '未找到用户，身份出错！'
             ]);
         }
-        $url = 'https://www.yiluzou.cn/Fishot/public/'.$result['background'];
+        $url = config('setting.image_root').$result['background'];
         return json_encode([
             'code' => 200,
             'msg' => $url
@@ -337,7 +337,7 @@ class User extends BaseController
                 unlink(COMMON_PATH."/".$u['background']);
             }
         }
-        $new_url = 'https://www.yiluzou.cn/Fishot/public/'.$url;
+        $new_url = config('setting.image_root').$url;
         return json_encode([
             'code' => 200,
             'msg' => $new_url
