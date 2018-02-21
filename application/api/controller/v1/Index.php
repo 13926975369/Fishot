@@ -9,6 +9,7 @@
 namespace app\api\controller\v1;
 use app\api\controller\BaseController;
 use app\api\exception\ParameterException;
+use app\api\model\Fishot_sharemember;
 use app\api\validate\PatternValidate;
 use app\api\controller\v1\User as user;
 use app\api\controller\v1\Story as Story;
@@ -107,10 +108,8 @@ class Index extends BaseController
             //拉一个相册群
             $result = $User->buildGroup($data);
         }elseif ($type == 'A008') {
-            //发布故事
-            if ($post['data']==1) $result = $Image->uploadStory($post['a_id'],$post['time'],$post['story'],$post['position'],$post['data']);
-            elseif ($post['data']=='2') $result = $Image->uploadStory($post['a_id'],$post['time'],'',$post['position'],$post['data']);
-            elseif ($post['data']=='3') $result = $Image->uploadStory($post['a_id'],'null',$post['story'],'',$post['data']);
+            //上传故事
+//            $result = $Story->add_story();
         }elseif ($type == 'A009'){
             //展示故事
             if (!array_key_exists('flag',$data)){
@@ -189,7 +188,38 @@ class Index extends BaseController
             //修改名字和描述
             $result = $Story->change_album_info($data);
         }elseif ($type == 'A021'){
+            //展示相册封面
             $result = $Story->show_album_background($data);
+        }elseif ($type == 'A022'){
+            //展示相册名字和描述
+            $result = $Story->show_name($data);
+        }elseif ($type == 'A023'){
+            //创建时添加故事接口
+            $result = $Story->add_story();
+        }elseif ($type == 'A024'){
+            //拿到用户的相册信息
+            $result = $Story->back_user_id($data);
+        }elseif ($type == 'A025'){
+            //获取用户的拥有的相册数目
+            $result = $Story->get_album_count();
+        }elseif ($type == 'A026'){
+            //根据相册的id获取相册信息
+            $result = $Story->id_get_info($data);
+        }elseif ($type == 'A027'){
+            //id获取故事信息
+            $result = $Story->show_single_story($data);
+        }elseif ($type == 'A028'){
+            //分页获取故事
+            $result = $Story->show_album_story($data);
+        }elseif ($type == 'A029'){
+            //获取相册拥有的故事数目
+            $result = $Story->get_album_story_count($data);
+        }elseif ($type == 'A030'){
+            //切换故事的顺序
+            $result = $Story->change_rank();
+        }elseif ($type == 'A031'){
+            //添加颜色
+            $result = $Story->add_color($data);
         }else{
             throw new ParameterException([
                 'msg' => '输入类型有误！'
