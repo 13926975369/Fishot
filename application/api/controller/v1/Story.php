@@ -10,6 +10,7 @@ namespace app\api\controller\v1;
 use app\api\controller\BaseController;
 use app\api\exception\BaseException;
 use app\api\exception\ParameterException;
+use app\api\exception\PasswordException;
 use app\api\exception\UpdateException;
 use app\api\exception\UserExistException;
 use app\api\model\Fishot_sharemember;
@@ -23,6 +24,8 @@ use app\api\service\Token;
 use app\api\validate\AlbumName;
 use app\api\validate\IDMustBePostINT;
 use app\api\validate\StoryIdTest;
+use DoctrineTest\InstantiatorTestAsset\PharExceptionAsset;
+use think\Db;
 use think\Request;
 use think\Validate;
 
@@ -32,7 +35,8 @@ class Story extends BaseController
     //前置验证
     protected $beforeActionList = [
         'checkShareAlbumScope' => ['only' => 'showstory,delstory,create_album,destroy,change_album_background,show_name,show_statement,get_album_count,back_user_id,get_album_count
-        add_story,id_get_info,show_single_story,show_album_story,get_album_story_count,change_rank,add_color,change_state'],
+        add_story,id_get_info,show_single_story,show_album_story,get_album_story_count,change_rank,add_color,change_state,invite_friend,upload_head,add_photo,update_story,
+        change_edit_state,get_head,exit_edit_state'],
     ];
 
     /*
@@ -440,8 +444,32 @@ class Story extends BaseController
                 $sharealbum = new Fishot_sharealbum();
                 $info2 = $sharealbum->where([
                     'id' => $album_id
-                ])->field('group_name,publish_time,background,person_number,story_number,statement,state,color')->find();
+                ])->field('group_name,publish_time,background,person_number,story_number,statement,state,color,edit')->find();
                 $result[$i]['album_id'] = $album_id;
+
+                $member = new Fishot_sharemember();
+                $user = new Fishot_user();
+                $member_info = $member->where([
+                    'group_id' => $album_id
+                ])->field('user_id')->select();
+
+                if (!$member_info){
+                    throw new ParameterException();
+                }
+
+                $member_array = [];
+                $j = 0;
+                foreach ($member_info as $vvvv){
+                    $member_array[$j]['user_id'] = $vvvv['user_id'];
+                    $re = $user->where([
+                        'id' => $vvvv['user_id']
+                    ])->field('username,portrait')->find();
+                    $member_array[$j]['username'] = $re['username'];
+                    $member_array[$j]['portrait'] = config('setting.image_root').$re['portrait'];
+
+                    $j++;
+                }
+
                 $result[$i]['album_name'] = $info2['group_name'];
                 $result[$i]['statement'] = $info2['statement'];
                 $result[$i]['background'] = config('setting.image_root').$info2['background'];
@@ -450,6 +478,8 @@ class Story extends BaseController
                 $result[$i]['story_number'] = $info2['story_number'];
                 $result[$i]['state'] = $info2['state'];
                 $result[$i]['color'] = $info2['color'];
+                $result[$i]['edit'] = $info2['edit'];
+                $result[$i]['member'] = $member_array;
 
                 $i++;
             }
@@ -468,8 +498,32 @@ class Story extends BaseController
                 $sharealbum = new Fishot_sharealbum();
                 $info2 = $sharealbum->where([
                     'id' => $album_id
-                ])->field('group_name,publish_time,background,person_number,story_number,,statement,state,color')->find();
+                ])->field('group_name,publish_time,background,person_number,story_number,,statement,state,color,edit')->find();
                 $result[$i]['album_id'] = $album_id;
+
+                $member = new Fishot_sharemember();
+                $user = new Fishot_user();
+                $member_info = $member->where([
+                    'group_id' => $album_id
+                ])->field('user_id')->select();
+
+                if (!$member_info){
+                    throw new ParameterException();
+                }
+
+                $member_array = [];
+                $j = 0;
+                foreach ($member_info as $vvvv){
+                    $member_array[$j]['user_id'] = $vvvv['user_id'];
+                    $re = $user->where([
+                        'id' => $vvvv['user_id']
+                    ])->field('username,portrait')->find();
+                    $member_array[$j]['username'] = $re['username'];
+                    $member_array[$j]['portrait'] = config('setting.image_root').$re['portrait'];
+
+                    $j++;
+                }
+
                 $result[$i]['album_name'] = $info2['group_name'];
                 $result[$i]['statement'] = $info2['statement'];
                 $result[$i]['background'] = config('setting.image_root').$info2['background'];
@@ -478,6 +532,8 @@ class Story extends BaseController
                 $result[$i]['story_number'] = $info2['story_number'];
                 $result[$i]['state'] = $info2['state'];
                 $result[$i]['color'] = $info2['color'];
+                $result[$i]['edit'] = $info2['edit'];
+                $result[$i]['member'] = $member_array;
 
                 $i++;
             }
@@ -521,9 +577,31 @@ class Story extends BaseController
         $sharealbum = new Fishot_sharealbum();
         $info = $sharealbum->where([
             'id' => $album_id
-        ])->field('group_name,publish_time,background,person_number,story_number,statement,state,color')->find();
+        ])->field('group_name,publish_time,background,person_number,story_number,statement,state,color,edit')->find();
         if (!$info){
             throw new ParameterException();
+        }
+
+        $member = new Fishot_sharemember();
+        $user = new Fishot_user();
+        $member_info = $member->where([
+            'group_id' => $album_id
+        ])->field('user_id')->select();
+
+        if (!$member_info){
+            throw new ParameterException();
+        }
+
+        $member_array = [];
+        $j = 0;
+        foreach ($member_info as $v){
+            $member_array[$j]['user_id'] = $v['user_id'];
+            $re = $user->where([
+                'id' => $v['user_id']
+            ])->field('username,portrait')->find();
+            $member_array[$j]['username'] = $re['username'];
+            $member_array[$j]['portrait'] = config('setting.image_root').$re['portrait'];
+            $j++;
         }
 
         return json_encode([
@@ -536,7 +614,9 @@ class Story extends BaseController
                 'person_number' => $info['person_number'],
                 'story_number' => $info['story_number'],
                 'state' => $info['state'],
-                'color' => $info['color']
+                'color' => $info['color'],
+                'edit' => $info['edit'],
+                'member' => $member_array
             ]
         ]);
     }
@@ -675,6 +755,211 @@ class Story extends BaseController
         ]);
     }
 
+    public function add_photo(){
+        //拿用户id
+        $uid = Token::getCurrentUid();
+        $data = input('post.');
+        if (!array_key_exists('id',$data)){
+            throw new BaseException([
+                'msg' => '无formdata中的第四项！'
+            ]);
+        }
+        if (!array_key_exists('rank',$data)){
+            throw new BaseException([
+                'msg' => '无formdata中的第五项！'
+            ]);
+        }
+        if (!array_key_exists('album_id',$data)){
+            throw new BaseException([
+                'msg' => '无formdata中的第六项！'
+            ]);
+        }
+        if (!is_numeric($data['rank'])){
+            throw new ParameterException([
+                'msg' => '顺序需为数字'
+            ]);
+        }
+        if (!is_numeric($data['album_id'])){
+            throw new ParameterException([
+                'msg' => '相册标识需为数字'
+            ]);
+        }
+        $album = new Fishot_sharealbum();
+        $check = $album->where([
+            'id' => $data['album_id']
+        ])->field('color,story_number')->find();
+        if (!$check){
+            throw new ParameterException([
+                'msg' => '没有这个相册！'
+            ]);
+        }
+        $story_id = $data['id'];
+        $rank = $data['rank'];
+        if ((int)$rank == 1){
+            $var = 'photo_url';
+        }elseif ((int)$rank == 2){
+            $var = 'photo_url2';
+        }elseif ((int)$rank == 3){
+            $var = 'photo_url3';
+        }elseif ((int)$rank == 4){
+            $var = 'photo_url4';
+        }else{
+            throw new ParameterException([
+                'msg' => 'rank只能为1、2、3、4'
+            ]);
+        }
+        $story = new Fishot_story();
+        if ($story_id == ''){
+            $image = new Image();
+            $url = $image->upload_image('photo');
+            $album->startTrans();
+            $story->startTrans();
+            $re = $story->insertGetId([
+                'group_id' => $data['album_id'],
+                'user_id' => $uid,
+                $var => $url,
+                'photo_number' => 1,
+                'published_time' => time()
+            ]);
+            $rrrr = $album->where([
+                'id' => $data['album_id']
+            ])->update([
+                'story_number' => (int)$check['story_number'] + 1
+            ]);
+            if (!$re || !$rrrr){
+                $album->rollback();
+                $story->rollback();
+                if (is_file(COMMON_PATH."/".$url)){
+                    unlink(COMMON_PATH."/".$url);
+                }
+                throw new UpdateException();
+            }
+            $album->commit();
+            $story->commit();
+            return json_encode([
+                'code' => 200,
+                'msg' => [
+                    'id' => $re,
+                    'photo_url' => config('setting.image_root').$url
+                ]
+            ]);
+        }else{
+            if (!is_numeric($story_id)){
+                throw new ParameterException([
+                    'msg' => '故事标识非数字'
+                ]);
+            }
+            $old_info = $story->where([
+                'id' => $story_id
+            ])->field('photo_number,'.$var)->find();
+            if (!$old_info){
+                throw new ParameterException();
+            }
+            $image = new Image();
+            $url = $image->upload_image('photo');
+
+            if ($old_info[$var] == ''){
+                $re = $story->where([
+                    'id' => $story_id
+                ])->update([
+                    $var => $url,
+                    'photo_number' => (int)$old_info['photo_number'] + 1
+                ]);
+                if (!$re){
+                    if (is_file(COMMON_PATH."/".$url)){
+                        unlink(COMMON_PATH."/".$url);
+                    }
+                    throw new UpdateException();
+                }
+            }else{
+                $re = $story->where([
+                    'id' => $story_id
+                ])->update([
+                    $var => $url
+                ]);
+                if (!$re){
+                    if (is_file(COMMON_PATH."/".$url)){
+                        unlink(COMMON_PATH."/".$url);
+                    }
+                    throw new UpdateException();
+                }else{
+                    if (is_file(COMMON_PATH."/".$old_info[$var])){
+                        unlink(COMMON_PATH."/".$old_info[$var]);
+                    }
+                }
+            }
+            return json_encode([
+                'code' => 200,
+                'msg' => [
+                    'id' => $story_id,
+                    'photo_url' => config('setting.image_root').$url
+                ]
+            ]);
+        }
+    }
+
+    public function update_story(){
+        $data = input('post.data/a');
+        if (!is_array($data)){
+            throw new ParameterException([
+                'msg' => '传入并非数组'
+            ]);
+        }
+        Db::startTrans();
+        $i = 1;
+        foreach ($data as $v){
+            if (!array_key_exists('story_id',$v)){
+                throw new BaseException([
+                    'msg' => '无故事标识！'
+                ]);
+            }
+            if (!array_key_exists('story',$v)){
+                throw new BaseException([
+                    'msg' => '无故事！'
+                ]);
+            }
+            if (!array_key_exists('photo_position',$v)){
+                throw new BaseException([
+                    'msg' => '无故事地点！'
+                ]);
+            }
+            if (!array_key_exists('shooting_time',$v)){
+                throw new BaseException([
+                    'msg' => '无故事时间！'
+                ]);
+            }
+            $story_id = $v['story_id'];
+            if (!is_numeric($story_id)){
+                throw new ParameterException([
+                    'msg' => '传入的故事标识非数字'
+                ]);
+            }
+            $content = xss($v['story']);
+            $position = xss($v['photo_position']);
+            $time = xss($v['shooting_time']);
+            $result = Db::table('fishot_story')->where([
+                'id' => $story_id
+            ])->update([
+                'story' => $content,
+                'rank' => $i,
+                'photo_position' => $position,
+                'shooting_time' => $time
+            ]);
+            if (!$result){
+                Db::rollback();
+                throw new UpdateException();
+            }
+
+            $i++;
+        }
+        Db::commit();
+
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
+        ]);
+    }
+
     //根据id获取故事信息
     public function show_single_story($data){
         //拿用户id
@@ -701,19 +986,19 @@ class Story extends BaseController
         }
         $result['user_id'] = $info['user_id'];
         if ((int)$info['photo_number'] == 1){
-            $result['photo_url1'] = config('setting.image_root').$info['photo_url'];
+            $result['photo_url'][0] = config('setting.image_root').$info['photo_url'];
         }elseif ((int)$info['photo_number'] == 2){
-            $result['photo_url1'] = config('setting.image_root').$info['photo_url'];
-            $result['photo_url2'] = config('setting.image_root').$info['photo_url2'];
+            $result['photo_url'][0] = config('setting.image_root').$info['photo_url'];
+            $result['photo_url'][1] = config('setting.image_root').$info['photo_url2'];
         }elseif ((int)$info['photo_number'] == 3){
-            $result['photo_url1'] = config('setting.image_root').$info['photo_url'];
-            $result['photo_url2'] = config('setting.image_root').$info['photo_url2'];
-            $result['photo_url3'] = config('setting.image_root').$info['photo_url3'];
+            $result['photo_url'][0] = config('setting.image_root').$info['photo_url'];
+            $result['photo_url'][1] = config('setting.image_root').$info['photo_url2'];
+            $result['photo_url'][2] = config('setting.image_root').$info['photo_url3'];
         }elseif ((int)$info['photo_number'] == 4){
-            $result['photo_url1'] = config('setting.image_root').$info['photo_url'];
-            $result['photo_url2'] = config('setting.image_root').$info['photo_url2'];
-            $result['photo_url3'] = config('setting.image_root').$info['photo_url3'];
-            $result['photo_url4'] = config('setting.image_root').$info['photo_url4'];
+            $result['photo_url'][0] = config('setting.image_root').$info['photo_url'];
+            $result['photo_url'][1] = config('setting.image_root').$info['photo_url2'];
+            $result['photo_url'][2] = config('setting.image_root').$info['photo_url3'];
+            $result['photo_url'][3] = config('setting.image_root').$info['photo_url4'];
         }
         $result['photo_number'] = $info['photo_number'];
         $result['story'] = $info['story'];
@@ -802,19 +1087,19 @@ class Story extends BaseController
                 $result[$i]['user_id'] = $info2['user_id'];
                 $result[$i]['user_id'] = $info2['user_id'];
                 if ((int)$info2['photo_number'] == 1){
-                    $result[$i]['photo_url1'] = config('setting.image_root').$info2['photo_url'];
+                    $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
                 }elseif ((int)$info2['photo_number'] == 2){
-                    $result[$i]['photo_url1'] = config('setting.image_root').$info2['photo_url'];
-                    $result[$i]['photo_url2'] = config('setting.image_root').$info2['photo_url2'];
+                    $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
+                    $result[$i]['photo_url'][1] = config('setting.image_root').$info2['photo_url2'];
                 }elseif ((int)$info2['photo_number'] == 3){
-                    $result[$i]['photo_url1'] = config('setting.image_root').$info2['photo_url'];
-                    $result[$i]['photo_url2'] = config('setting.image_root').$info2['photo_url2'];
-                    $result[$i]['photo_url3'] = config('setting.image_root').$info2['photo_url3'];
+                    $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
+                    $result[$i]['photo_url'][1] = config('setting.image_root').$info2['photo_url2'];
+                    $result[$i]['photo_url'][2] = config('setting.image_root').$info2['photo_url3'];
                 }elseif ((int)$info2['photo_number'] == 4){
-                    $result[$i]['photo_url1'] = config('setting.image_root').$info2['photo_url'];
-                    $result[$i]['photo_url2'] = config('setting.image_root').$info2['photo_url2'];
-                    $result[$i]['photo_url3'] = config('setting.image_root').$info2['photo_url3'];
-                    $result[$i]['photo_url4'] = config('setting.image_root').$info2['photo_url4'];
+                    $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
+                    $result[$i]['photo_url'][1] = config('setting.image_root').$info2['photo_url2'];
+                    $result[$i]['photo_url'][2] = config('setting.image_root').$info2['photo_url3'];
+                    $result[$i]['photo_url'][3] = config('setting.image_root').$info2['photo_url4'];
                 }
                 $result[$i]['photo_number'] = $info2['photo_number'];
                 $result[$i]['story'] = $info2['story'];
@@ -843,19 +1128,19 @@ class Story extends BaseController
                 $result[$i]['user_id'] = $info2['user_id'];
 
                 if ((int)$info2['photo_number'] == 1){
-                    $result[$i]['photo_url1'] = config('setting.image_root').$info2['photo_url'];
+                    $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
                 }elseif ((int)$info2['photo_number'] == 2){
-                    $result[$i]['photo_url1'] = config('setting.image_root').$info2['photo_url'];
-                    $result[$i]['photo_url2'] = config('setting.image_root').$info2['photo_url2'];
+                    $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
+                    $result[$i]['photo_url'][1] = config('setting.image_root').$info2['photo_url2'];
                 }elseif ((int)$info2['photo_number'] == 3){
-                    $result[$i]['photo_url1'] = config('setting.image_root').$info2['photo_url'];
-                    $result[$i]['photo_url2'] = config('setting.image_root').$info2['photo_url2'];
-                    $result[$i]['photo_url3'] = config('setting.image_root').$info2['photo_url3'];
+                    $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
+                    $result[$i]['photo_url'][1] = config('setting.image_root').$info2['photo_url2'];
+                    $result[$i]['photo_url'][2] = config('setting.image_root').$info2['photo_url3'];
                 }elseif ((int)$info2['photo_number'] == 4){
-                    $result[$i]['photo_url1'] = config('setting.image_root').$info2['photo_url'];
-                    $result[$i]['photo_url2'] = config('setting.image_root').$info2['photo_url2'];
-                    $result[$i]['photo_url3'] = config('setting.image_root').$info2['photo_url3'];
-                    $result[$i]['photo_url4'] = config('setting.image_root').$info2['photo_url4'];
+                    $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
+                    $result[$i]['photo_url'][1] = config('setting.image_root').$info2['photo_url2'];
+                    $result[$i]['photo_url'][2] = config('setting.image_root').$info2['photo_url3'];
+                    $result[$i]['photo_url'][3] = config('setting.image_root').$info2['photo_url4'];
                 }
 
                 $result[$i]['photo_number'] = $info2['photo_number'];
@@ -1036,6 +1321,180 @@ class Story extends BaseController
         return json_encode([
             'code' => 200,
             'msg' => 'success'
+        ]);
+    }
+
+    public function invite_friend($data){
+        //拿邀请用户id
+        $uid = Token::getCurrentUid();
+        if (!array_key_exists('album_id',$data)){
+            throw new BaseException([
+                'msg' => '无数据参数中的第一项！'
+            ]);
+        }
+        $album_id = $data['album_id'];
+        if (!is_numeric($album_id)){
+            throw new BaseException([
+                'msg' => '相册标识不是数字！'
+            ]);
+        }
+        $member = new Fishot_sharemember();
+        $rrr = $member->where([
+            'group_id' => $album_id,
+            'user_id' => $uid
+        ])->find();
+        if (!$rrr){
+            $album = new Fishot_sharealbum();
+            $info = $album->where([
+                'id' => $album_id
+            ])->field('person_number')->find();
+            if (!$info){
+                throw new ParameterException();
+            }
+            $member->startTrans();
+            $album->startTrans();
+            $result = $member->insert([
+                'group_id' => $album_id,
+                'user_id' => $uid
+            ]);
+            $re = $album->where([
+                'id' => $album_id
+            ])->update([
+                'person_number' => (int)$info['person_number'] + 1
+            ]);
+            if (!$result || !$re){
+                $member->rollback();
+                $album->rollback();
+                throw new ParameterException();
+            }else{
+                $member->commit();
+                $album->commit();
+            }
+        }
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
+        ]);
+    }
+
+    public function upload_head(){
+        //拿邀请用户id
+        $uid = Token::getCurrentUid();
+        $image = new Image();
+        $url = $image->upload_image('photo');
+        $user = new Fishot_user();
+
+        $re = $user->where([
+            'id' => $uid
+        ])->field('portrait')->find();
+
+        if (!$re){
+            if (is_file(COMMON_PATH."/".$url)){
+                unlink(COMMON_PATH."/".$url);
+            }
+            throw new UpdateException([
+                'msg' => '更新出错，身份不正确！'
+            ]);
+        }
+
+        //将头像存进去
+        $result = $user->where([
+            'id' => $uid
+        ])->update([
+            'portrait' => $url
+        ]);
+
+        if (!$result){
+            if (is_file(COMMON_PATH."/".$url)){
+                unlink(COMMON_PATH."/".$url);
+            }
+            throw new UpdateException([
+                'msg' => '更新出错，身份不正确！'
+            ]);
+        }else{
+            if ($re['portrait'] != 'upload/head.png'){
+                if (is_file(COMMON_PATH."/".$re['portrait'])){
+                    unlink(COMMON_PATH."/".$re['portrait']);
+                }
+            }
+        }
+
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
+        ]);
+    }
+
+    public function change_edit_state($token,$data){
+        //添加编辑者
+        $uid = Token::getCurrentUid();
+        if (!array_key_exists('album_id',$data)){
+            throw new BaseException([
+                'msg' => '无数据参数中的第一项！'
+            ]);
+        }
+        if (!is_numeric($data['album_id'])){
+            throw new ParameterException([
+                '相册标识非数字！'
+            ]);
+        }
+        $album_id = $data['album_id'];
+        $result = Db::table('fishot_sharealbum')->where([
+            'id' => $album_id
+        ])->update([
+            'edit' => $token
+        ]);
+
+        if (!$result){
+            throw new UpdateException();
+        }
+
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
+        ]);
+    }
+
+    public function exit_edit_state($data){
+        //添加编辑者
+        $uid = Token::getCurrentUid();
+        if (!array_key_exists('album_id',$data)){
+            throw new BaseException([
+                'msg' => '无数据参数中的第一项！'
+            ]);
+        }
+        if (!is_numeric($data['album_id'])){
+            throw new ParameterException([
+                '相册标识非数字！'
+            ]);
+        }
+        $album_id = $data['album_id'];
+        $result = Db::table('fishot_sharealbum')->where([
+            'id' => $album_id
+        ])->update([
+            'edit' => ''
+        ]);
+
+        if (!$result){
+            throw new UpdateException();
+        }
+
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
+        ]);
+    }
+    public function get_head(){
+        $uid = Token::getCurrentUid();
+        $result = Db::table('fishot_user')->where([
+            'id' => $uid
+        ])->field('portrait')->find();
+        if (!$result){
+            throw new ParameterException();
+        }
+        return json_encode([
+            'code' => 200,
+            'msg' => config('setting.image_root').$result['portrait']
         ]);
     }
 }

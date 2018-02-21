@@ -15,6 +15,7 @@ use app\api\controller\v1\User as user;
 use app\api\controller\v1\Story as Story;
 use app\api\controller\v1\Image as Image;
 use app\api\controller\v1\Token as Token;
+use think\Db;
 use think\Request;
 
 class Index extends BaseController
@@ -108,8 +109,8 @@ class Index extends BaseController
             //拉一个相册群
             $result = $User->buildGroup($data);
         }elseif ($type == 'A008') {
-            //上传故事
-//            $result = $Story->add_story();
+            //邀请好友进入相册
+            $result = $Story->invite_friend($data);
         }elseif ($type == 'A009'){
             //展示故事
             if (!array_key_exists('flag',$data)){
@@ -195,7 +196,7 @@ class Index extends BaseController
             $result = $Story->show_name($data);
         }elseif ($type == 'A023'){
             //创建时添加故事接口
-            $result = $Story->add_story();
+            $result = $Story->add_photo();
         }elseif ($type == 'A024'){
             //拿到用户的相册信息
             $result = $Story->back_user_id($data);
@@ -223,6 +224,21 @@ class Index extends BaseController
         }elseif ($type == 'A032'){
             //添加颜色
             $result = $Story->change_state($data);
+        }elseif ($type == 'A033'){
+            //上传头像
+            $result = $Story->upload_head();
+        }elseif ($type == 'A034'){
+            //更新故事
+            $result = $Story->update_story();
+        }elseif ($type == 'A035'){
+            //新增编辑者状态
+            $result = $Story->change_edit_state($token_value,$data);
+        }elseif ($type == 'A036'){
+            //新增编辑者状态
+            $result = $Story->exit_edit_state($data);
+        }elseif ($type == 'A037'){
+            //新增编辑者状态
+            $result = $Story->get_head();
         }else{
             throw new ParameterException([
                 'msg' => '输入类型有误！'
