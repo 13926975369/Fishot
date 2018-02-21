@@ -220,6 +220,9 @@ class Index extends BaseController
         }elseif ($type == 'A031'){
             //添加颜色
             $result = $Story->add_color($data);
+        }elseif ($type == 'A032'){
+            //添加颜色
+            $result = $Story->change_state($data);
         }else{
             throw new ParameterException([
                 'msg' => '输入类型有误！'

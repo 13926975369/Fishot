@@ -32,7 +32,7 @@ class Story extends BaseController
     //前置验证
     protected $beforeActionList = [
         'checkShareAlbumScope' => ['only' => 'showstory,delstory,create_album,destroy,change_album_background,show_name,show_statement,get_album_count,back_user_id,get_album_count
-        add_story,id_get_info,show_single_story,show_album_story,get_album_story_count,change_rank,add_color'],
+        add_story,id_get_info,show_single_story,show_album_story,get_album_story_count,change_rank,add_color,change_state'],
     ];
 
     /*
@@ -965,21 +965,74 @@ class Story extends BaseController
         $color = $data['color'];
         if (!is_numeric($album_id)){
             throw new BaseException([
-                'msg' => '身份标识不是数字！'
+                'msg' => '相册标识不是数字！'
             ]);
         }
 
         $album = new Fishot_sharealbum();
-        $re = $album->where([
+        $info = $album->where([
             'id' => $album_id
-        ])->update([
-            'color' => $color
-        ]);
+        ])->field('color')->find();
+        if ($color!=$info['color']){
+            $re = $album->where([
+                'id' => $album_id
+            ])->update([
+                'color' => $color
+            ]);
 
-        if (!$re){
-            throw new UpdateException();
+            if (!$re){
+                throw new UpdateException();
+            }
         }
 
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
+        ]);
+    }
+
+    public function change_state($data){
+        //拿用户id
+        $uid = Token::getCurrentUid();
+        if (!array_key_exists('album_id',$data)){
+            throw new BaseException([
+                'msg' => '无数据参数中的第一项！'
+            ]);
+        }
+        $album_id = $data['album_id'];
+        if (!is_numeric($album_id)){
+            throw new BaseException([
+                'msg' => '相册标识不是数字！'
+            ]);
+        }
+        $album = new Fishot_sharealbum();
+        $info = $album->where([
+            'id' => $album_id
+        ])->field('state')->find();
+        if(!$info){
+            throw new ParameterException();
+        }
+        if ($info['state'] == 0){
+            $re = $album->where([
+                'id' => $album_id
+            ])->update([
+                'state' => 1
+            ]);
+
+            if (!$re){
+                throw new UpdateException();
+            }
+        }elseif ($info['state'] == 1){
+            $re = $album->where([
+                'id' => $album_id
+            ])->update([
+                'state' => 0
+            ]);
+
+            if (!$re){
+                throw new UpdateException();
+            }
+        }
         return json_encode([
             'code' => 200,
             'msg' => 'success'
