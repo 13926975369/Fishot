@@ -151,13 +151,8 @@ class Index extends BaseController
             }
             $result = $Image->ShowAlbumPhoto($data['a_id'],$data['page'],$data['size']);
         }elseif ($type == 'A012'){
-            //展示相册所有相片
-            if (!array_key_exists('a_id',$data)){
-                throw new ParameterException([
-                    'msg' => '未传入a_id！'
-                ]);
-            }
-            $result = $Image->ShowAlbumPhotoAll($data['a_id']);
+            //倒数关闭激活
+
         }elseif ($type == 'A013'){
             //修改个性签名
             if (!array_key_exists('personality_signature',$data)){
@@ -196,7 +191,7 @@ class Index extends BaseController
             $result = $Story->show_name($data);
         }elseif ($type == 'A023'){
             //创建时添加故事接口
-            $result = $Story->add_photo();
+            $result = $Story->real_add_pic();
         }elseif ($type == 'A024'){
             //拿到用户的相册信息
             $result = $Story->back_user_id($data);
@@ -229,7 +224,7 @@ class Index extends BaseController
             $result = $Story->upload_head();
         }elseif ($type == 'A034'){
             //更新故事
-            $result = $Story->update_story();
+            $result = $Story->final_update();
         }elseif ($type == 'A035'){
             //新增编辑者状态
             $result = $Story->change_edit_state($token_value,$data);

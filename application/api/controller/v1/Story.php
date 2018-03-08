@@ -25,6 +25,7 @@ use app\api\validate\AlbumName;
 use app\api\validate\IDMustBePostINT;
 use app\api\validate\StoryIdTest;
 use DoctrineTest\InstantiatorTestAsset\PharExceptionAsset;
+use think\Cache;
 use think\Db;
 use think\Request;
 use think\Validate;
@@ -36,7 +37,7 @@ class Story extends BaseController
     protected $beforeActionList = [
         'checkShareAlbumScope' => ['only' => 'showstory,delstory,create_album,destroy,change_album_background,show_name,show_statement,get_album_count,back_user_id,get_album_count
         add_story,id_get_info,show_single_story,show_album_story,get_album_story_count,change_rank,add_color,change_state,invite_friend,upload_head,add_photo,update_story,
-        change_edit_state,get_head,exit_edit_state'],
+        change_edit_state,get_head,exit_edit_state,real_add_pic,final_update'],
     ];
 
     /*
@@ -478,7 +479,13 @@ class Story extends BaseController
                 $result[$i]['story_number'] = $info2['story_number'];
                 $result[$i]['state'] = $info2['state'];
                 $result[$i]['color'] = $info2['color'];
-                $result[$i]['edit'] = $info2['edit'];
+                //看看缓存里面有没有这个键
+                $vars = Cache::get($album_id);
+                if (!$vars){
+                    $result[$i]['edit'] = '';
+                }else{
+                    $result[$i]['edit'] = $vars;
+                }
                 $result[$i]['member'] = $member_array;
 
                 $i++;
@@ -532,7 +539,13 @@ class Story extends BaseController
                 $result[$i]['story_number'] = $info2['story_number'];
                 $result[$i]['state'] = $info2['state'];
                 $result[$i]['color'] = $info2['color'];
-                $result[$i]['edit'] = $info2['edit'];
+                //看看缓存里面有没有这个键
+                $vars = Cache::get($album_id);
+                if (!$vars){
+                    $result[$i]['edit'] = '';
+                }else{
+                    $result[$i]['edit'] = $vars;
+                }
                 $result[$i]['member'] = $member_array;
 
                 $i++;
@@ -603,7 +616,13 @@ class Story extends BaseController
             $member_array[$j]['portrait'] = config('setting.image_root').$re['portrait'];
             $j++;
         }
-
+        //看看缓存里面有没有这个键
+        $vars = Cache::get($album_id);
+        if (!$vars){
+            $edit = '';
+        }else{
+            $edit = $vars;
+        }
         return json_encode([
             'code' => 200,
             'msg' => [
@@ -615,7 +634,7 @@ class Story extends BaseController
                 'story_number' => $info['story_number'],
                 'state' => $info['state'],
                 'color' => $info['color'],
-                'edit' => $info['edit'],
+                'edit' => $edit,
                 'member' => $member_array
             ]
         ]);
@@ -898,6 +917,17 @@ class Story extends BaseController
         }
     }
 
+    public function real_add_pic(){
+        //拿用户id
+        $uid = Token::getCurrentUid();
+        $image = new Image();
+        $url = $image->upload_image('photo');
+        return json_encode([
+            'code' => 200,
+            'msg' => config('setting.image_root').$url
+        ]);
+    }
+
     public function update_story(){
         $data = input('post.data/a');
         if (!is_array($data)){
@@ -977,7 +1007,7 @@ class Story extends BaseController
         $story = new Fishot_story();
         $info = $story->where([
             'id' => $story_id
-            ])->field('user_id,photo_url,story,rank,photo_position,shooting_time,published_time,photo_number')
+            ])->field('user_id,photo_url,story,rank,photo_position,shooting_time,published_time,photo_number,photo_url2,photo_url3,photo_url4')
             ->find();
         if (!$info){
             throw new ParameterException([
@@ -1006,6 +1036,11 @@ class Story extends BaseController
         $result['photo_position'] = $info['photo_position'];
         $result['shooting_time'] = $info['shooting_time'];
         $result['published_time'] = date("Y/m/d",$info['published_time']);
+        $user = new Fishot_user();
+        $re = $user->where([
+            'id' => $info['user_id']
+        ])->field('portrait')->find();
+        $result['portrait'] = config('setting.image_root').$re['portrait'];
 
         return json_encode([
             'code' => 200,
@@ -1070,6 +1105,7 @@ class Story extends BaseController
             ]);
         }
         $story = new Fishot_story();
+        $user = new Fishot_user();
         $album_id = $data['album_id'];
         if ($page == 0 && $size == 0){
             $info = $story->where([
@@ -1082,10 +1118,14 @@ class Story extends BaseController
                 $story_id = $v['id'];
                 $info2 = $story->where([
                     'id' => $story_id
-                ])->field('id,user_id,photo_url,story,rank,photo_position,shooting_time,published_time,photo_number')->find();
+                ])->field('id,user_id,photo_url,story,rank,photo_position,shooting_time,published_time,photo_number,photo_url2,photo_url3,photo_url4')->find();
                 $result[$i]['story_id'] = $info2['id'];
                 $result[$i]['user_id'] = $info2['user_id'];
                 $result[$i]['user_id'] = $info2['user_id'];
+                $re = $user->where([
+                    'id' => $info2['user_id']
+                ])->field('portrait')->find();
+                $result[$i]['portrait'] = config('setting.image_root').$re['portrait'];
                 if ((int)$info2['photo_number'] == 1){
                     $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
                 }elseif ((int)$info2['photo_number'] == 2){
@@ -1123,10 +1163,13 @@ class Story extends BaseController
                 $story_id = $v['id'];
                 $info2 = $story->where([
                     'id' => $story_id
-                ])->field('id,user_id,photo_url,story,rank,photo_position,shooting_time,published_time,photo_number')->find();
+                ])->field('id,user_id,photo_url,story,rank,photo_position,shooting_time,published_time,photo_number,photo_url2,photo_url3,photo_url4')->find();
                 $result[$i]['story_id'] = $info2['id'];
                 $result[$i]['user_id'] = $info2['user_id'];
-
+                $re = $user->where([
+                    'id' => $info2['user_id']
+                ])->field('portrait')->find();
+                $result[$i]['portrait'] = config('setting.image_root').$re['portrait'];
                 if ((int)$info2['photo_number'] == 1){
                     $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
                 }elseif ((int)$info2['photo_number'] == 2){
@@ -1439,11 +1482,7 @@ class Story extends BaseController
             ]);
         }
         $album_id = $data['album_id'];
-        $result = Db::table('fishot_sharealbum')->where([
-            'id' => $album_id
-        ])->update([
-            'edit' => $token
-        ]);
+        $result = cache($album_id, $token, config('setting.editor'));
 
         if (!$result){
             throw new UpdateException();
@@ -1469,11 +1508,7 @@ class Story extends BaseController
             ]);
         }
         $album_id = $data['album_id'];
-        $result = Db::table('fishot_sharealbum')->where([
-            'id' => $album_id
-        ])->update([
-            'edit' => ''
-        ]);
+        $result = Cache::rm($album_id);
 
         if (!$result){
             throw new UpdateException();
@@ -1495,6 +1530,206 @@ class Story extends BaseController
         return json_encode([
             'code' => 200,
             'msg' => config('setting.image_root').$result['portrait']
+        ]);
+    }
+
+    public function count_backward(){
+        $uid = Token::getCurrentUid();
+        $token = input('post.token');
+        $new_token = $token.'0';
+        cache($new_token, 1, config('setting.backward'));
+    }
+
+    public function final_update(){
+        $uid = Token::getCurrentUid();
+        $data = input('post.data/a');
+        if (!is_array($data)){
+            throw new ParameterException([
+                'msg' => '传入并非数组'
+            ]);
+        }
+        Db::startTrans();
+        $i = 1;
+        foreach ($data as $v){
+            if (!array_key_exists('user_id',$v)){
+                throw new BaseException([
+                    'msg' => '无用户标识！'
+                ]);
+            }
+            if (!array_key_exists('album_id',$v)){
+                throw new BaseException([
+                    'msg' => '无相册标识！'
+                ]);
+            }
+            if (!array_key_exists('story',$v)){
+                throw new BaseException([
+                    'msg' => '无故事！'
+                ]);
+            }
+            if (!array_key_exists('photo_position',$v)){
+                throw new BaseException([
+                    'msg' => '无故事地点！'
+                ]);
+            }
+            if (!array_key_exists('shooting_time',$v)){
+                throw new BaseException([
+                    'msg' => '无故事时间！'
+                ]);
+            }
+            if (!array_key_exists('time',$v)){
+                throw new BaseException([
+                    'msg' => '无发布时间！'
+                ]);
+            }
+            $album_id = $v['album_id'];
+            if (!is_numeric($album_id)){
+                throw new ParameterException([
+                    'msg' => '传入的相册标识非数字'
+                ]);
+            }
+            if ($v['user_id'] == ''){
+                $user_id = $uid;
+            }else{
+                if (!is_numeric($v['user_id'])){
+                    throw new ParameterException([
+                        'msg' => '传入的用户标识非数字'
+                    ]);
+                }
+                $user_id = $v['user_id'];
+            }
+            if ($v['time'] == ''){
+                $ttime = (int)time();
+            }else{
+                $ttime = strtotime($v['time']);
+            }
+
+            $content = xss($v['story']);
+            $position = xss($v['photo_position']);
+            $time = xss($v['shooting_time']);
+            if ($i == 1){
+                //先删除
+                $result = Db::table('fishot_story')->where([
+                    'group_id' => $album_id
+                ])->delete();
+                if (!$result){
+                    Db::rollback();
+                    throw new UpdateException();
+                }
+            }
+            if (!array_key_exists('photo',$v)){
+                $re = Db::table('fishot_story')->insert([
+                    'group_id' => $album_id,
+                    'user_id' => $user_id,
+                    'story' => $content,
+                    'rank' => $i,
+                    'photo_position' => $position,
+                    'shooting_time' => $time,
+                    'published_time' => $ttime
+                ]);
+                if (!$re){
+                    Db::rollback();
+                    throw new UpdateException();
+                }
+            }else{
+                $photo_number = count($v['photo']);
+                if ((int)$photo_number == 0){
+                    $re = Db::table('fishot_story')->insert([
+                        'group_id' => $album_id,
+                        'user_id' => $user_id,
+                        'story' => $content,
+                        'rank' => $i,
+                        'photo_position' => $position,
+                        'shooting_time' => $time,
+                        'published_time' => $ttime,
+                        'photo_number' => 0
+                    ]);
+                    if (!$re){
+                        Db::rollback();
+                        throw new UpdateException();
+                    }
+                }elseif ((int)$photo_number == 1){
+                    $re = Db::table('fishot_story')->insert([
+                        'group_id' => $album_id,
+                        'user_id' => $user_id,
+                        'story' => $content,
+                        'rank' => $i,
+                        'photo_position' => $position,
+                        'shooting_time' => $time,
+                        'published_time' => $ttime,
+                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo'][0]),
+                        'photo_number' => 1
+                    ]);
+                    if (!$re){
+                        Db::rollback();
+                        throw new UpdateException();
+                    }
+                }elseif ((int)$photo_number == 2){
+                    $re = Db::table('fishot_story')->insert([
+                        'group_id' => $album_id,
+                        'user_id' => $user_id,
+                        'story' => $content,
+                        'rank' => $i,
+                        'photo_position' => $position,
+                        'shooting_time' => $time,
+                        'published_time' => $ttime,
+                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo'][0]),
+                        'photo_url2' => str_replace(config('setting.image_root'),'',$v['photo'][1]),
+                        'photo_number' => 2
+                    ]);
+                    if (!$re){
+                        Db::rollback();
+                        throw new UpdateException();
+                    }
+                }elseif ((int)$photo_number == 3){
+                    $re = Db::table('fishot_story')->insert([
+                        'group_id' => $album_id,
+                        'user_id' => $user_id,
+                        'story' => $content,
+                        'rank' => $i,
+                        'photo_position' => $position,
+                        'shooting_time' => $time,
+                        'published_time' => $ttime,
+                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo'][0]),
+                        'photo_url2' => str_replace(config('setting.image_root'),'',$v['photo'][1]),
+                        'photo_url3' => str_replace(config('setting.image_root'),'',$v['photo'][2]),
+                        'photo_number' => 3
+                    ]);
+                    if (!$re){
+                        Db::rollback();
+                        throw new UpdateException();
+                    }
+                }elseif ((int)$photo_number == 4){
+                    $re = Db::table('fishot_story')->insert([
+                        'group_id' => $album_id,
+                        'user_id' => $user_id,
+                        'story' => $content,
+                        'rank' => $i,
+                        'photo_position' => $position,
+                        'shooting_time' => $time,
+                        'published_time' => $ttime,
+                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo'][0]),
+                        'photo_url2' => str_replace(config('setting.image_root'),'',$v['photo'][1]),
+                        'photo_url3' => str_replace(config('setting.image_root'),'',$v['photo'][2]),
+                        'photo_url4' => str_replace(config('setting.image_root'),'',$v['photo'][3]),
+                        'photo_number' => 4
+                    ]);
+                    if (!$re){
+                        Db::rollback();
+                        throw new UpdateException();
+                    }
+                }else{
+                    throw new ParameterException([
+                        'msg' => '上传的照片最多四张'
+                    ]);
+                }
+            }
+            $i++;
+        }
+        Db::commit();
+
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
         ]);
     }
 }
