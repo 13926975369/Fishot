@@ -221,19 +221,34 @@ class Index extends BaseController
             $result = $Story->change_state($data);
         }elseif ($type == 'A033'){
             //上传头像
-            $result = $Story->upload_head();
+            $result = $Story->upload_head($data);
         }elseif ($type == 'A034'){
             //更新故事
-            $result = $Story->final_update();
+            $result = $Story->final_update($token_value);
         }elseif ($type == 'A035'){
             //新增编辑者状态
             $result = $Story->change_edit_state($token_value,$data);
         }elseif ($type == 'A036'){
             //新增编辑者状态
-            $result = $Story->exit_edit_state($data);
+            $result = $Story->exit_edit_state($token_value,$data);
         }elseif ($type == 'A037'){
             //新增编辑者状态
             $result = $Story->get_head();
+        }elseif ($type == 'A038'){
+            //切后台
+            $result = $Story->back_close($token_value,$data);
+        }elseif ($type == 'A039'){
+            //日签
+            $result = $Story->get_diary();
+        }elseif ($type == 'A040'){
+            //获取所有日签
+            $result = $Story->get_all_diary($data);
+        }elseif ($type == 'A041'){
+            //意见反馈
+            $result = $Story->feedback();
+        }elseif ($type == 'A042'){
+            //获取
+            $result = $Story->get_all_diary_number();
         }else{
             throw new ParameterException([
                 'msg' => '输入类型有误！'

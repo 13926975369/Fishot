@@ -466,7 +466,7 @@ class Story extends BaseController
                         'id' => $vvvv['user_id']
                     ])->field('username,portrait')->find();
                     $member_array[$j]['username'] = $re['username'];
-                    $member_array[$j]['portrait'] = config('setting.image_root').$re['portrait'];
+                    $member_array[$j]['portrait'] = $re['portrait'];
 
                     $j++;
                 }
@@ -526,7 +526,7 @@ class Story extends BaseController
                         'id' => $vvvv['user_id']
                     ])->field('username,portrait')->find();
                     $member_array[$j]['username'] = $re['username'];
-                    $member_array[$j]['portrait'] = config('setting.image_root').$re['portrait'];
+                    $member_array[$j]['portrait'] = $re['portrait'];
 
                     $j++;
                 }
@@ -613,7 +613,7 @@ class Story extends BaseController
                 'id' => $v['user_id']
             ])->field('username,portrait')->find();
             $member_array[$j]['username'] = $re['username'];
-            $member_array[$j]['portrait'] = config('setting.image_root').$re['portrait'];
+            $member_array[$j]['portrait'] = $re['portrait'];
             $j++;
         }
         //看看缓存里面有没有这个键
@@ -626,6 +626,7 @@ class Story extends BaseController
         return json_encode([
             'code' => 200,
             'msg' => [
+                'album_id' => $album_id,
                 'album_name' => $info['group_name'],
                 'statement' => $info['statement'],
                 'background' => config('setting.image_root').$info['background'],
@@ -1040,7 +1041,7 @@ class Story extends BaseController
         $re = $user->where([
             'id' => $info['user_id']
         ])->field('portrait')->find();
-        $result['portrait'] = config('setting.image_root').$re['portrait'];
+        $result['portrait'] = $re['portrait'];
 
         return json_encode([
             'code' => 200,
@@ -1125,7 +1126,7 @@ class Story extends BaseController
                 $re = $user->where([
                     'id' => $info2['user_id']
                 ])->field('portrait')->find();
-                $result[$i]['portrait'] = config('setting.image_root').$re['portrait'];
+                $result[$i]['portrait'] = $re['portrait'];
                 if ((int)$info2['photo_number'] == 1){
                     $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
                 }elseif ((int)$info2['photo_number'] == 2){
@@ -1169,7 +1170,7 @@ class Story extends BaseController
                 $re = $user->where([
                     'id' => $info2['user_id']
                 ])->field('portrait')->find();
-                $result[$i]['portrait'] = config('setting.image_root').$re['portrait'];
+                $result[$i]['portrait'] = $re['portrait'];
                 if ((int)$info2['photo_number'] == 1){
                     $result[$i]['photo_url'][0] = config('setting.image_root').$info2['photo_url'];
                 }elseif ((int)$info2['photo_number'] == 2){
@@ -1420,45 +1421,33 @@ class Story extends BaseController
         ]);
     }
 
-    public function upload_head(){
+    public function upload_head($data){
         //拿邀请用户id
         $uid = Token::getCurrentUid();
-        $image = new Image();
-        $url = $image->upload_image('photo');
-        $user = new Fishot_user();
 
-        $re = $user->where([
-            'id' => $uid
-        ])->field('portrait')->find();
-
-        if (!$re){
-            if (is_file(COMMON_PATH."/".$url)){
-                unlink(COMMON_PATH."/".$url);
-            }
-            throw new UpdateException([
-                'msg' => '更新出错，身份不正确！'
+        if (!array_key_exists('url',$data)){
+            throw new BaseException([
+                'msg' => '无数据参数中的第一项！'
             ]);
         }
 
-        //将头像存进去
-        $result = $user->where([
-            'id' => $uid
-        ])->update([
-            'portrait' => $url
-        ]);
 
-        if (!$result){
-            if (is_file(COMMON_PATH."/".$url)){
-                unlink(COMMON_PATH."/".$url);
-            }
-            throw new UpdateException([
-                'msg' => '更新出错，身份不正确！'
+        $re = Db::table('fishot_user')->where([
+            'id' => $uid
+        ])->field('portrait')->find();
+
+        $url = $re['portrait'];
+
+        if ($url!=$data['url']){
+            //将头像存进去
+            $result = Db::table('fishot_user')->where([
+                'id' => $uid
+            ])->update([
+                'portrait' => $data['url']
             ]);
-        }else{
-            if ($re['portrait'] != 'upload/head.png'){
-                if (is_file(COMMON_PATH."/".$re['portrait'])){
-                    unlink(COMMON_PATH."/".$re['portrait']);
-                }
+
+            if (!$result){
+                throw new UpdateException();
             }
         }
 
@@ -1478,14 +1467,38 @@ class Story extends BaseController
         }
         if (!is_numeric($data['album_id'])){
             throw new ParameterException([
-                '相册标识非数字！'
+                'msg' => '相册标识非数字！'
             ]);
         }
         $album_id = $data['album_id'];
-        $result = cache($album_id, $token, config('setting.editor'));
+        //看看缓存里面有没有这个键
+        $vars = Cache::get($album_id);
+        if (!$vars){
+            $re = Db::table('fishot_sharemember')->where([
+                'group_id' => $album_id,
+                'user_id' => $uid
+            ]);
+            if (!$re){
+                throw new BaseException([
+                    'msg' => '您并非相册成员！'
+                ]);
+            }
+            $result = cache($album_id, $token, config('setting.editor'));
+            if (!$result){
+                throw new UpdateException();
+            }
+        }else{
+            if ($vars != $token){
+                throw new BaseException([
+                    'msg' => '已经有编辑者了！'
+                ]);
+            }else{
+                $result = cache($album_id, $token, config('setting.editor'));
 
-        if (!$result){
-            throw new UpdateException();
+                if (!$result){
+                    throw new UpdateException();
+                }
+            }
         }
 
         return json_encode([
@@ -1494,8 +1507,8 @@ class Story extends BaseController
         ]);
     }
 
-    public function exit_edit_state($data){
-        //添加编辑者
+    public function exit_edit_state($token,$data){
+        //置空编辑者
         $uid = Token::getCurrentUid();
         if (!array_key_exists('album_id',$data)){
             throw new BaseException([
@@ -1504,10 +1517,23 @@ class Story extends BaseController
         }
         if (!is_numeric($data['album_id'])){
             throw new ParameterException([
-                '相册标识非数字！'
+                'msg' => '相册标识非数字！'
             ]);
         }
         $album_id = $data['album_id'];
+        //看看缓存里面有没有这个键
+        $vars = Cache::get($album_id);
+        if (!$vars){
+            throw new BaseException([
+                'msg' => '您未在编辑状态！'
+            ]);
+        }else{
+            if ($vars != $token){
+                throw new BaseException([
+                    'msg' => '您未在编辑状态！'
+                ]);
+            }
+        }
         $result = Cache::rm($album_id);
 
         if (!$result){
@@ -1529,7 +1555,7 @@ class Story extends BaseController
         }
         return json_encode([
             'code' => 200,
-            'msg' => config('setting.image_root').$result['portrait']
+            'msg' => $result['portrait']
         ]);
     }
 
@@ -1540,25 +1566,29 @@ class Story extends BaseController
         cache($new_token, 1, config('setting.backward'));
     }
 
-    public function final_update(){
+    public function final_update($token){
         $uid = Token::getCurrentUid();
         $data = input('post.data/a');
-        if (!is_array($data)){
-            throw new ParameterException([
-                'msg' => '传入并非数组'
+        $album_id = input('post.album_id');
+        if (!$album_id){
+            throw new BaseException([
+                'msg' => '无相册标识！'
             ]);
         }
+        if (!is_numeric($album_id)){
+            throw new BaseException([
+                'msg' => '相册标识不是数字！'
+            ]);
+        }
+        $album_id = (int)$album_id;
         Db::startTrans();
         $i = 1;
+        $num = 0;
         foreach ($data as $v){
+            $num++;
             if (!array_key_exists('user_id',$v)){
                 throw new BaseException([
                     'msg' => '无用户标识！'
-                ]);
-            }
-            if (!array_key_exists('album_id',$v)){
-                throw new BaseException([
-                    'msg' => '无相册标识！'
                 ]);
             }
             if (!array_key_exists('story',$v)){
@@ -1576,15 +1606,9 @@ class Story extends BaseController
                     'msg' => '无故事时间！'
                 ]);
             }
-            if (!array_key_exists('time',$v)){
+            if (!array_key_exists('published_time',$v)){
                 throw new BaseException([
                     'msg' => '无发布时间！'
-                ]);
-            }
-            $album_id = $v['album_id'];
-            if (!is_numeric($album_id)){
-                throw new ParameterException([
-                    'msg' => '传入的相册标识非数字'
                 ]);
             }
             if ($v['user_id'] == ''){
@@ -1597,26 +1621,45 @@ class Story extends BaseController
                 }
                 $user_id = $v['user_id'];
             }
-            if ($v['time'] == ''){
+            //看看缓存里面有没有这个键
+            $vars = Cache::get($album_id);
+            if (!$vars){
+                throw new BaseException([
+                    'msg' => '相册未在编辑状态！'
+                ]);
+            }else{
+                if ($vars != $token){
+                    throw new BaseException([
+                        'msg' => '您未在编辑状态！'
+                    ]);
+                }
+            }
+
+            if ($v['published_time'] == ''){
                 $ttime = (int)time();
             }else{
-                $ttime = strtotime($v['time']);
+                $ttime = strtotime($v['published_time']);
             }
 
             $content = xss($v['story']);
             $position = xss($v['photo_position']);
             $time = xss($v['shooting_time']);
             if ($i == 1){
-                //先删除
-                $result = Db::table('fishot_story')->where([
+                $ccc = Db::table('fishot_story')->where([
                     'group_id' => $album_id
-                ])->delete();
-                if (!$result){
-                    Db::rollback();
-                    throw new UpdateException();
+                ])->find();
+                if ($ccc){
+                    //先删除
+                    $result = Db::table('fishot_story')->where([
+                        'group_id' => $album_id
+                    ])->delete();
+                    if (!$result){
+                        Db::rollback();
+                        throw new UpdateException();
+                    }
                 }
             }
-            if (!array_key_exists('photo',$v)){
+            if (!array_key_exists('photo_url',$v)){
                 $re = Db::table('fishot_story')->insert([
                     'group_id' => $album_id,
                     'user_id' => $user_id,
@@ -1631,7 +1674,7 @@ class Story extends BaseController
                     throw new UpdateException();
                 }
             }else{
-                $photo_number = count($v['photo']);
+                $photo_number = count($v['photo_url']);
                 if ((int)$photo_number == 0){
                     $re = Db::table('fishot_story')->insert([
                         'group_id' => $album_id,
@@ -1648,21 +1691,39 @@ class Story extends BaseController
                         throw new UpdateException();
                     }
                 }elseif ((int)$photo_number == 1){
-                    $re = Db::table('fishot_story')->insert([
-                        'group_id' => $album_id,
-                        'user_id' => $user_id,
-                        'story' => $content,
-                        'rank' => $i,
-                        'photo_position' => $position,
-                        'shooting_time' => $time,
-                        'published_time' => $ttime,
-                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo'][0]),
-                        'photo_number' => 1
-                    ]);
-                    if (!$re){
-                        Db::rollback();
-                        throw new UpdateException();
+                    if ($v['photo_url'][0] != ''){
+                        $re = Db::table('fishot_story')->insert([
+                            'group_id' => $album_id,
+                            'user_id' => $user_id,
+                            'story' => $content,
+                            'rank' => $i,
+                            'photo_position' => $position,
+                            'shooting_time' => $time,
+                            'published_time' => $ttime,
+                            'photo_url' => str_replace(config('setting.image_root'),'',$v['photo_url'][0]),
+                            'photo_number' => 1
+                        ]);
+                        if (!$re){
+                            Db::rollback();
+                            throw new UpdateException();
+                        }
+                    }else{
+                        $re = Db::table('fishot_story')->insert([
+                            'group_id' => $album_id,
+                            'user_id' => $user_id,
+                            'story' => $content,
+                            'rank' => $i,
+                            'photo_position' => $position,
+                            'shooting_time' => $time,
+                            'published_time' => $ttime,
+                            'photo_number' => 1
+                        ]);
+                        if (!$re){
+                            Db::rollback();
+                            throw new UpdateException();
+                        }
                     }
+
                 }elseif ((int)$photo_number == 2){
                     $re = Db::table('fishot_story')->insert([
                         'group_id' => $album_id,
@@ -1672,8 +1733,8 @@ class Story extends BaseController
                         'photo_position' => $position,
                         'shooting_time' => $time,
                         'published_time' => $ttime,
-                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo'][0]),
-                        'photo_url2' => str_replace(config('setting.image_root'),'',$v['photo'][1]),
+                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo_url'][0]),
+                        'photo_url2' => str_replace(config('setting.image_root'),'',$v['photo_url'][1]),
                         'photo_number' => 2
                     ]);
                     if (!$re){
@@ -1689,9 +1750,9 @@ class Story extends BaseController
                         'photo_position' => $position,
                         'shooting_time' => $time,
                         'published_time' => $ttime,
-                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo'][0]),
-                        'photo_url2' => str_replace(config('setting.image_root'),'',$v['photo'][1]),
-                        'photo_url3' => str_replace(config('setting.image_root'),'',$v['photo'][2]),
+                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo_url'][0]),
+                        'photo_url2' => str_replace(config('setting.image_root'),'',$v['photo_url'][1]),
+                        'photo_url3' => str_replace(config('setting.image_root'),'',$v['photo_url'][2]),
                         'photo_number' => 3
                     ]);
                     if (!$re){
@@ -1707,10 +1768,10 @@ class Story extends BaseController
                         'photo_position' => $position,
                         'shooting_time' => $time,
                         'published_time' => $ttime,
-                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo'][0]),
-                        'photo_url2' => str_replace(config('setting.image_root'),'',$v['photo'][1]),
-                        'photo_url3' => str_replace(config('setting.image_root'),'',$v['photo'][2]),
-                        'photo_url4' => str_replace(config('setting.image_root'),'',$v['photo'][3]),
+                        'photo_url' => str_replace(config('setting.image_root'),'',$v['photo_url'][0]),
+                        'photo_url2' => str_replace(config('setting.image_root'),'',$v['photo_url'][1]),
+                        'photo_url3' => str_replace(config('setting.image_root'),'',$v['photo_url'][2]),
+                        'photo_url4' => str_replace(config('setting.image_root'),'',$v['photo_url'][3]),
                         'photo_number' => 4
                     ]);
                     if (!$re){
@@ -1725,11 +1786,506 @@ class Story extends BaseController
             }
             $i++;
         }
+        $cc = Db::table('fishot_sharealbum')
+            ->where([
+                'id' => $album_id
+            ])->update([
+            'story_number' => $num
+        ]);
+        if (!$cc){
+            Db::rollback();
+            throw new UpdateException();
+        }
         Db::commit();
 
         return json_encode([
             'code' => 200,
             'msg' => 'success'
+        ]);
+    }
+
+    public function back_close($token,$data){
+        //切后台倒计时
+        $uid = Token::getCurrentUid();
+        if (!array_key_exists('album_id',$data)){
+            throw new BaseException([
+                'msg' => '无数据参数中的第一项！'
+            ]);
+        }
+        if (!is_numeric($data['album_id'])){
+            throw new ParameterException([
+                'msg' => '相册标识非数字！'
+            ]);
+        }
+        $album_id = $data['album_id'];
+        //看看缓存里面有没有这个键
+        $vars = Cache::get($album_id);
+        if (!$vars){
+            throw new BaseException([
+                'msg' => '相册未在编辑状态！'
+            ]);
+        }else{
+            if ($vars != $token){
+                throw new BaseException([
+                    'msg' => '您未在编辑状态！'
+                ]);
+            }
+        }
+        Cache::rm($album_id);
+        $result = cache($album_id, $token, config('setting.backclose'));
+
+        if (!$result){
+            throw new UpdateException();
+        }
+
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
+        ]);
+    }
+
+    public function back_edit($token,$data){
+        //从后台切回编辑者
+        $uid = Token::getCurrentUid();
+        if (!array_key_exists('album_id',$data)){
+            throw new BaseException([
+                'msg' => '无数据参数中的第一项！'
+            ]);
+        }
+        if (!is_numeric($data['album_id'])){
+            throw new ParameterException([
+                'msg' => '相册标识非数字！'
+            ]);
+        }
+        $album_id = $data['album_id'];
+        //看看缓存里面有没有这个键
+        $vars = Cache::get($album_id);
+        if (!$vars){
+            throw new BaseException([
+                'msg' => '相册未在编辑状态！'
+            ]);
+        }else{
+            if ($vars != $token){
+                throw new BaseException([
+                    'msg' => '您未在编辑状态！'
+                ]);
+            }
+        }
+        $result = cache($album_id, $token, config('setting.editor'));
+
+        if (!$result){
+            throw new UpdateException();
+        }
+
+        return json_encode([
+            'code' => 200,
+            'msg' => 'success'
+        ]);
+    }
+
+    public function get_diary(){
+        $uid = Token::getCurrentUid();
+        $day_check = date("Y/m/d",time());
+        $info = Db::table('fishot_diary')->where('day','=',$day_check)
+            ->find();
+        if ($info){
+            $url = config('setting.image_root').$info['diary_url'];
+            $msg['diary_url'] = $url;
+            $msg['diary_user'] = $info['user'];
+            $msg['diary_text'] = $info['text'];
+            $msg['diary_time'] = date("Y/m/d",$info['time']);
+        }else{
+            $info2 = Db::table('fishot_diary')->where([
+                'id' => 1
+            ])->find();
+            $url = config('setting.image_root').$info2['diary_url'];
+            $msg['diary_url'] = $url;
+            $msg['diary_user'] = $info2['user'];
+            $msg['diary_text'] = $info2['text'];
+            $msg['diary_time'] = date("Y/m/d",$info2['time']);
+        }
+
+        $info1 = Db::table('fishot_banner')->select();
+        $i = 0;
+        foreach ($info1 as  $v){
+            $msg['banner'][$i] = config('setting.image_root').$v['banner'];
+            $i++;
+        }
+
+        return json_encode([
+            'code' => 200,
+            'msg' => $msg
+        ]);
+    }
+
+    public function get_banner(){
+        $uid = Token::getCurrentUid();
+        $info = Db::table('fishot_banner')->where([
+            'id' => 1
+        ])->select();
+        $banner = [];
+        $i = 0;
+        foreach ($info as  $v){
+            $banner[$i] = $v['banner'];
+            $i++;
+        }
+        return json_encode([
+            'code' => 200,
+            'msg' => $banner
+        ]);
+    }
+
+    public function get_all_diary($data){
+        $uid = Token::getCurrentUid();
+        if (!array_key_exists('page',$data)){
+            throw new BaseException([
+                'msg' => '无数据参数中的第1项！'
+            ]);
+        }
+        if (!array_key_exists('size',$data)){
+            throw new BaseException([
+                'msg' => '无数据参数中的第2项！'
+            ]);
+        }
+        $rule = [
+            'page'  => 'require|number',
+            'size'   => 'require|number'
+        ];
+        $msg = [
+            'page.require' => '页号不能为空',
+            'page.number'   => '页号必须是数字',
+            'size.require' => '页面大小不能为空',
+            'size.number'   => '页面大小必须是数字',
+        ];
+        $validate = new Validate($rule,$msg);
+        $result   = $validate->check($data);
+        if(!$result){
+            throw new BaseException([
+                'msg' => $validate->getError()
+            ]);
+        }
+        $page = (int)$data['page'];
+        $size = (int)$data['size'];
+        if ($page<0){
+            throw new BaseException([
+                'msg' => '数据参数中的第一项最小为0'
+            ]);
+        }
+        if ($size<0){
+            throw new BaseException([
+                'msg' => '数据参数中的第二项最小为0'
+            ]);
+        }
+        if ($page*$size == 0 && $page+$size!=0){
+            throw new BaseException([
+                'msg' => '为0情况只有数据参数中两项同时为零，否则最小从1开始'
+            ]);
+        }
+        $r = [];
+        $i = 0;
+        if ($page == 0 && $size == 0){
+            $info = Db::table('fishot_diary')
+                ->order('time', 'desc')
+                ->select();
+            if (!$info){
+                exit([
+                    'code' => 404,
+                    'msg' => '暂无日签'
+                ]);
+            }else{
+                foreach ($info as $v){
+                    $r[$i]['diary_url'] = $v['diary_url'];
+                    $r[$i]['diary_user'] = $v['user'];
+                    $r[$i]['diary_text'] = $v['text'];
+                    $r[$i]['diary_time'] = date("Y/m/d",$v['time']);
+                    $i++;
+                }
+            }
+        }else{
+            $start = ($page-1)*$size;
+            $info = Db::table('fishot_diary')->limit($start,$size)
+                ->order('time', 'desc')
+                ->select();
+            if (!$info){
+                exit([
+                    'code' => 404,
+                    'msg' => '暂无日签'
+                ]);
+            }else{
+                foreach ($info as $v){
+                    $r[$i]['diary_url'] = $v['diary_url'];
+                    $r[$i]['diary_user'] = $v['user'];
+                    $r[$i]['diary_text'] = $v['text'];
+                    $r[$i]['diary_time'] = date("Y/m/d",$v['time']);
+                    $i++;
+                }
+            }
+        }
+        return json_encode([
+            'code' => 200,
+            'msg' => $r
+        ]);
+    }
+
+    public function get_all_diary_number(){
+        $uid = Token::getCurrentUid();
+        $info = Db::table('fishot_diary')
+            ->field('id')
+            ->select();
+        if (!$info){
+            return json_encode([
+                'code' => 200,
+                'msg' => 0
+            ]);
+        }else{
+            return json_encode([
+                'code' => 200,
+                'msg' => count($info)
+            ]);
+        }
+    }
+
+    public function change_diary(){
+        $data = input('post.');
+        $user = $data['user'];
+        $text = $data['text'];
+        $photo = Request::instance()->file('photo');
+        if (!$photo){
+            return '请上传图片！！';
+        }
+        //给定一个目录
+        $info = $photo->validate(['size'=> 1048576,'ext'=>'jpg,jpeg,png,bmp,gif'])->move('upload');
+        if ($info && $info->getPathname()) {
+            $url = $info->getPathname();
+        } else {
+            return '请检验上传图片是否小于1M 或者 请检验上传图片格式（jpg,jpeg,png,bmp,gif）！';
+        }
+        $day_check = date("Y/m/d",time());
+        $u = Db::table('fishot_diary')->where('day','=',$day_check)
+            ->field('diary_url,day')
+            ->find();
+        if ($u){
+            $result = Db::table('fishot_diary')->where('day','=',$day_check)
+                ->update([
+                    'diary_url' => $url,
+                    'user' => $user,
+                    'text' => $text,
+                    'time' => (int)time()
+                ]);
+            if (!$result){
+                if (is_file(COMMON_PATH."/".$url)){
+                    unlink(COMMON_PATH."/".$url);
+                }
+                return '更新出错！';
+            }
+            if ($u['diary_url'] != 'upload/diary.png'){
+                if (is_file(COMMON_PATH."/".$u['diary_url'])){
+                    unlink(COMMON_PATH."/".$u['diary_url']);
+                }
+            }
+        }else{
+            $result = Db::table('fishot_diary')
+                ->insert([
+                    'diary_url' => $url,
+                    'user' => $user,
+                    'text' => $text,
+                    'time' => (int)time(),
+                    'day' => $day_check
+                ]);
+            if (!$result){
+                if (is_file(COMMON_PATH."/".$url)){
+                    unlink(COMMON_PATH."/".$url);
+                }
+                return '更新出错！';
+            }
+            if ($u['diary_url'] != 'upload/diary.png'){
+                if (is_file(COMMON_PATH."/".$u['diary_url'])){
+                    unlink(COMMON_PATH."/".$u['diary_url']);
+                }
+            }
+        }
+        return '成功';
+    }
+
+    public function change_banner(){
+        Db::startTrans();
+        $u = Db::table('fishot_banner')
+            ->field('banner')
+            ->select();
+        $banner1 = $u['banner1'];
+        $banner2 = $u['banner2'];
+        $banner3 = $u['banner3'];
+        $photo1 = Request::instance()->file('photo1');
+        if ($photo1){
+            //给定一个目录
+            $info = $photo1->validate(['size'=> 1048576,'ext'=>'jpg,jpeg,png,bmp,gif'])->move('upload');
+            if ($info && $info->getPathname()) {
+                $url1 = $info->getPathname();
+            } else {
+                Db::rollback();
+                return '请检验上传图片是否小于1M 或者 请检验上传图片格式（jpg,jpeg,png,bmp,gif）！';
+            }
+
+
+            $result = Db::table('fishot_banner')->where('id','=',1)
+                ->update([
+                    'banner1' => $url1
+                ]);
+            if (!$result){
+                if (is_file(COMMON_PATH."/".$url1)){
+                    unlink(COMMON_PATH."/".$url1);
+                }
+                Db::rollback();
+                exit([
+                    'code' => 400,
+                    'msg' => '更新出错！'
+                ]);
+            }
+        }
+
+
+        $photo2 = Request::instance()->file('photo2');
+        if ($photo2){
+            //给定一个目录
+            $info = $photo2->validate(['size'=> 1048576,'ext'=>'jpg,jpeg,png,bmp,gif'])->move('upload');
+            if ($info && $info->getPathname()) {
+                $url2 = $info->getPathname();
+            } else {
+                Db::rollback();
+                return '请检验上传图片是否小于1M 或者 请检验上传图片格式（jpg,jpeg,png,bmp,gif）！';
+            }
+
+            $result = Db::table('fishot_banner')->where('id','=',1)
+                ->update([
+                    'banner2' => $url2
+                ]);
+            if (!$result){
+                if (is_file(COMMON_PATH."/".$url2)){
+                    unlink(COMMON_PATH."/".$url2);
+                }
+                Db::rollback();
+                return '更新出错！';
+            }
+        }
+
+        $photo3 = Request::instance()->file('photo3');
+        if ($photo3){
+            //给定一个目录
+            $info = $photo3->validate(['size'=> 1048576,'ext'=>'jpg,jpeg,png,bmp,gif'])->move('upload');
+            if ($info && $info->getPathname()) {
+                $url3 = $info->getPathname();
+            } else {
+                Db::rollback();
+                return '请检验上传图片是否小于1M 或者 请检验上传图片格式（jpg,jpeg,png,bmp,gif）！';
+            }
+
+            $result = Db::table('fishot_banner')->where('id','=',1)
+                ->update([
+                    'banner3' => $url3
+                ]);
+            if (!$result){
+                if (is_file(COMMON_PATH."/".$url3)){
+                    unlink(COMMON_PATH."/".$url3);
+                }
+                Db::rollback();
+                return '更新出错！';
+            }
+        }
+
+        Db::commit();
+        if ($banner1 != 'upload/banner.jpg'){
+            if (is_file(COMMON_PATH."/".$banner1)){
+                unlink(COMMON_PATH."/".$banner1);
+            }
+        }
+        if ($banner2 != 'upload/banner.jpg'){
+            if (is_file(COMMON_PATH."/".$banner2)){
+                unlink(COMMON_PATH."/".$banner2);
+            }
+        }
+        if ($banner3 != 'upload/banner.jpg'){
+            if (is_file(COMMON_PATH."/".$banner3)){
+                unlink(COMMON_PATH."/".$banner3);
+            }
+        }
+
+        return '成功';
+    }
+
+    public function feedback(){
+        $uid = Token::getCurrentUid();
+        $data = input('post.');
+        if (!array_key_exists('feedback_type',$data)){
+            throw new BaseException([
+                'msg' => '无类型！'
+            ]);
+        }
+        if (!array_key_exists('text',$data)){
+            throw new BaseException([
+                'msg' => '无文本内容！'
+            ]);
+        }
+        if (!array_key_exists('phone',$data)){
+            throw new BaseException([
+                'msg' => '无电话！'
+            ]);
+        }
+        $time = time();
+        $type = $data['feedback_type'];
+        $text = $data['text'];
+        $phone = $data['phone'];
+
+        $photo1 = Request::instance()->file('photo');
+        if ($photo1){
+            //给定一个目录
+            $info = $photo1->validate(['ext'=>'jpg,jpeg,png,bmp,gif'])->move('upload');
+            if ($info && $info->getPathname()) {
+                $url1 = $info->getPathname();
+            } else {
+                exit([
+                    'code' => 400,
+                    'msg' => '请检验上传图片格式（jpg,jpeg,png,bmp,gif）！'
+                ]);
+            }
+
+
+            $result = Db::table('fishot_feedback')->insert([
+                'time' => $time,
+                'user_id' => $uid,
+                'type' => $type,
+                'phone' => $phone,
+                'text' => $text,
+                'photo' => $url1
+            ]);
+            if (!$result){
+                if (is_file(COMMON_PATH."/".$url1)){
+                    unlink(COMMON_PATH."/".$url1);
+                }
+                exit([
+                    'code' => 400,
+                    'msg' => '更新出错！'
+                ]);
+            }
+        }else{
+            //无图片上传
+            $result = Db::table('fishot_feedback')->insert([
+                'time' => $time,
+                'user_id' => $uid,
+                'type' => $type,
+                'phone' => $phone,
+                'text' => $text
+            ]);
+            if (!$result){
+                exit([
+                    'code' => 400,
+                    'msg' => '更新出错！'
+                ]);
+            }
+        }
+
+        return json_encode([
+            'code' => 200,
+            'msg' => '发表成功！'
         ]);
     }
 }
