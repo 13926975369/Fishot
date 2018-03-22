@@ -15,6 +15,7 @@ use think\Route;
 Route::post('index','api/v1.Index/index');
 Route::post('diary','api/v1.Story/change_diary');
 Route::post('banner','api/v1.Story/change_banner');
+Route::get('feedback','api/v1.Story/show_feedback');
 //Route::get('indexx','api/v1.Banner/ttt');
 //Route::get('index','api/v1.Banner/tttt');
 ////Route::get('indexxx','api/v1.Index/test');

@@ -1786,16 +1786,23 @@ class Story extends BaseController
             }
             $i++;
         }
-        $cc = Db::table('fishot_sharealbum')
+        $numm = Db::table('fishot_sharealbum')
             ->where([
                 'id' => $album_id
-            ])->update([
-            'story_number' => $num
-        ]);
-        if (!$cc){
-            Db::rollback();
-            throw new UpdateException();
+            ])->field('story_number')->find();
+        if ($num != $numm['story_number']){
+            $cc = Db::table('fishot_sharealbum')
+                ->where([
+                    'id' => $album_id
+                ])->update([
+                    'story_number' => $num
+                ]);
+            if (!$cc){
+                Db::rollback();
+                throw new UpdateException();
+            }
         }
+
         Db::commit();
 
         return json_encode([
@@ -1893,15 +1900,17 @@ class Story extends BaseController
             $msg['diary_url'] = $url;
             $msg['diary_user'] = $info['user'];
             $msg['diary_text'] = $info['text'];
+            $msg['diary_user_pic'] = $info['user_pic'];
             $msg['diary_time'] = date("Y/m/d",$info['time']);
         }else{
-            $info2 = Db::table('fishot_diary')->where([
-                'id' => 1
-            ])->find();
+            $info2 = Db::table('fishot_diary')
+                ->order('time', 'desc')
+                ->find();
             $url = config('setting.image_root').$info2['diary_url'];
             $msg['diary_url'] = $url;
             $msg['diary_user'] = $info2['user'];
             $msg['diary_text'] = $info2['text'];
+            $msg['diary_user_pic'] = $info2['user_pic'];
             $msg['diary_time'] = date("Y/m/d",$info2['time']);
         }
 
@@ -1997,7 +2006,9 @@ class Story extends BaseController
                     $r[$i]['diary_url'] = $v['diary_url'];
                     $r[$i]['diary_user'] = $v['user'];
                     $r[$i]['diary_text'] = $v['text'];
+                    $r[$i]['diary_user_pic'] = $v['user_pic'];
                     $r[$i]['diary_time'] = date("Y/m/d",$v['time']);
+                    $r[$i]['time'] = date("m.d",$v['time']);
                     $i++;
                 }
             }
@@ -2016,7 +2027,9 @@ class Story extends BaseController
                     $r[$i]['diary_url'] = $v['diary_url'];
                     $r[$i]['diary_user'] = $v['user'];
                     $r[$i]['diary_text'] = $v['text'];
+                    $r[$i]['diary_user_pic'] = $v['user_pic'];
                     $r[$i]['diary_time'] = date("Y/m/d",$v['time']);
+                    $r[$i]['time'] = date("m.d",$v['time']);
                     $i++;
                 }
             }
@@ -2049,6 +2062,7 @@ class Story extends BaseController
         $data = input('post.');
         $user = $data['user'];
         $text = $data['text'];
+        $user_pic = $data['user_pic'];
         $photo = Request::instance()->file('photo');
         if (!$photo){
             return '请上传图片！！';
@@ -2070,7 +2084,8 @@ class Story extends BaseController
                     'diary_url' => $url,
                     'user' => $user,
                     'text' => $text,
-                    'time' => (int)time()
+                    'time' => (int)time(),
+                    'user_pic' => $user_pic
                 ]);
             if (!$result){
                 if (is_file(COMMON_PATH."/".$url)){
@@ -2090,7 +2105,8 @@ class Story extends BaseController
                     'user' => $user,
                     'text' => $text,
                     'time' => (int)time(),
-                    'day' => $day_check
+                    'day' => $day_check,
+                    'user_pic' => $user_pic
                 ]);
             if (!$result){
                 if (is_file(COMMON_PATH."/".$url)){
@@ -2287,5 +2303,21 @@ class Story extends BaseController
             'code' => 200,
             'msg' => '发表成功！'
         ]);
+    }
+
+    public function show_feedback(){
+        $info = Db::table('fishot_feedback')
+            ->select();
+        $r = [];
+        $i = 0;
+        echo "<h1>意见反馈</h1></<br>";
+        foreach ($info as $v){
+            $r[$i]['type'] = $v['type'];
+            $r[$i]['content'] = $v['text'];
+            $r[$i]['phone'] = $v['phone'];
+            $r[$i]['time'] = date("Y/m/d",$v['time']);
+            echo '类型：'.$v['type'].'   意见：'.$v['text'].'   联系电话：'.$v['phone'].'   反馈时间：'.$r[$i]['time'].'</br>'.'</br>';
+            $i++;
+        }
     }
 }
