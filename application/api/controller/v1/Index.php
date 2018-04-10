@@ -249,6 +249,12 @@ class Index extends BaseController
         }elseif ($type == 'A042'){
             //获取
             $result = $Story->get_all_diary_number();
+        }elseif ($type == 'A043'){
+            //展示成员信息
+            $result = $Story->show_member_info($data);
+        }elseif ($type == 'A044'){
+            //删除成员
+            $result = $Story->delete_member($data);
         }else{
             throw new ParameterException([
                 'msg' => '输入类型有误！'

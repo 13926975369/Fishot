@@ -16,8 +16,9 @@ Route::post('index','api/v1.Index/index');
 Route::post('diary','api/v1.Story/change_diary');
 Route::post('banner','api/v1.Story/change_banner');
 Route::get('feedback','api/v1.Story/show_feedback');
+Route::get('photo','api/v1.Story/show_photo');
 //Route::get('indexx','api/v1.Banner/ttt');
-//Route::get('index','api/v1.Banner/tttt');
+//Route::get('base_controller','api/v1.Banner/tttt');
 ////Route::get('indexxx','api/v1.Index/test');
 ////User
 //Route::rule('relatedinformation/:id','api/v1.User/getRelatedInformation','GET',['https' => false]);

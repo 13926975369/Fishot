@@ -25,6 +25,7 @@ use app\api\validate\AlbumName;
 use app\api\validate\IDMustBePostINT;
 use app\api\validate\StoryIdTest;
 use DoctrineTest\InstantiatorTestAsset\PharExceptionAsset;
+use phpDocumentor\Reflection\Types\Null_;
 use think\Cache;
 use think\Db;
 use think\Request;
@@ -157,9 +158,32 @@ class Story extends BaseController
 //        }
 //
 //
+        $post = input('post.');
         //拿用户id
         $uid = Token::getCurrentUid();
+        if (!array_key_exists('name',$post)){
+            throw new ParameterException([
+                'msg' => '无相册名字'
+            ]);
+        }
 
+        if (!array_key_exists('description',$post)){
+            throw new ParameterException([
+                'msg' => '无相册描述'
+            ]);
+        }
+
+        if (!array_key_exists('is_secret',$post)){
+            throw new ParameterException([
+                'msg' => '无私密状态'
+            ]);
+        }
+
+        if ($post['is_secret']!='0'&&$post['is_secret']!='1'){
+            throw new ParameterException([
+                'msg' => '私密状态应为0或1'
+            ]);
+        }
 
         $sharealbum = new Fishot_sharealbum();
         $sharemember = new Fishot_sharemember();
@@ -170,10 +194,34 @@ class Story extends BaseController
         $sharealbum->startTrans();
         $sharemember->startTrans();
         $USer->startTrans();
-        $info = $sharealbum->insertGetId([
-            'main_speaker' => $uid,
-            'publish_time' => time()
-        ]);
+        $photo = Request::instance()->file('photo');
+        if ($photo){
+            $info = $photo->validate(['size'=> 5242880,'ext'=>'jpg,jpeg,png,bmp,gif'])->move('upload');
+            if ($info && $info->getPathname()) {
+                $url = $info->getPathname();
+            }else {
+                throw new ParameterException([
+                    'msg' => '上传图片有误！'
+                ]);
+            }
+            $info = $sharealbum->insertGetId([
+                'main_speaker' => $uid,
+                'publish_time' => time(),
+                'group_name' => $post['name'],
+                'statement' => $post['description'],
+                'state' => $post['is_secret'],
+                'background' => $url
+            ]);
+        }else{
+            $info = $sharealbum->insertGetId([
+                'main_speaker' => $uid,
+                'publish_time' => time(),
+                'group_name' => $post['name'],
+                'statement' => $post['description'],
+                'state' => $post['is_secret']
+            ]);
+        }
+
         $info1 = $sharemember->data([
             'group_id' => $info,
             'user_id' => $uid
@@ -192,10 +240,24 @@ class Story extends BaseController
             throw new UpdateException();
         }
 
+        $all = Db::table('fishot_sharealbum')
+            ->where([
+                'id' => $info
+            ])->find();
 
         return json_encode([
             'code' => 200,
-            'msg' => $info
+            'msg' => [
+                'album_id' => $info,
+                'album_name' => $all['group_name'],
+                'statement' => $all['statement'],
+                'background' => config('setting.image_root').$all['background'],
+                'publish_time' => date("Y/m/d",$all['publish_time']),
+                'person_number' => $all['person_number'],
+                'story_number' => $all['story_number'],
+                'state' => $all['state'],
+                'color' => $all['color']
+            ]
         ]);
     }
 
@@ -2317,6 +2379,131 @@ class Story extends BaseController
             $r[$i]['phone'] = $v['phone'];
             $r[$i]['time'] = date("Y/m/d",$v['time']);
             echo '类型：'.$v['type'].'   意见：'.$v['text'].'   联系电话：'.$v['phone'].'   反馈时间：'.$r[$i]['time'].'</br>'.'</br>';
+            $i++;
+        }
+    }
+
+    public function show_member_info($data){
+        $uid = Token::getCurrentUid();
+        if (!array_key_exists('album_id',$data)){
+            throw new BaseException([
+                'msg' => '无相册标识！'
+            ]);
+        }
+        $sharealbum = Db::table('fishot_sharealbum')
+            ->where([
+                'id' => $data['album_id']
+            ])->find();
+        $main_speaker = $sharealbum['main_speaker'];
+        $sharemember = Db::table('fishot_sharemember')
+            ->where([
+                'group_id' => $data['album_id']
+            ])->select();
+        $list = [];
+        $i = 0;
+        foreach ($sharemember as $v){
+            if ($v['user_id'] != $main_speaker){
+                $id = $v['user_id'];
+                $user = Db::table('fishot_user')
+                    ->where([
+                        'id' => $id
+                    ])->find();
+                $list[$i]['user_id'] = $id;
+                $list[$i]['username'] = $user['username'];
+                $list[$i]['portrait'] = $user['portrait'];
+                $i++;
+            }
+        }
+
+        $user = Db::table('fishot_user')
+            ->where([
+                'id' => $main_speaker
+            ])->find();
+        $protrait = $user['portrait'];
+        $username = $user['username'];
+
+        return json_encode([
+            'code' => 200,
+            'msg' => [
+                'main_speaker' => $main_speaker,
+                'portrait' => $protrait,
+                'username' => $username,
+                'member' => $list
+            ]
+        ]);
+    }
+
+    public function delete_member($data){
+        $uid = Token::getCurrentUid();
+        if (!array_key_exists('album_id',$data)){
+            throw new BaseException([
+                'msg' => '无相册标识！'
+            ]);
+        }
+        if (!array_key_exists('user_id',$data)){
+            throw new BaseException([
+                'msg' => '无成员id！'
+            ]);
+        }
+
+        $group_id = $data['album_id'];
+        $user_id = $data['user_id'];
+        Db::startTrans();
+        $sharemember = Db::table('fishot_sharemember')
+            ->where([
+                'group_id' => $group_id,
+                'user_id' => $user_id
+            ])->delete();
+        if (!$sharemember){
+            Db::rollback();
+            var_dump('1');
+            throw new UpdateException([
+                'msg' => '删除失败'
+            ]);
+        }
+
+        $story = Db::table('fishot_story')
+            ->where([
+                'group_id' => $group_id,
+                'user_id' => $user_id
+            ])->find();
+
+        if ($story){
+            $sharestory = Db::table('fishot_story')
+                ->where([
+                    'group_id' => $group_id,
+                    'user_id' => $user_id
+                ])->delete();
+            if (!$sharestory){
+                Db::rollback();
+                throw new UpdateException([
+                    'msg' => '删除失败'
+                ]);
+            }
+        }
+
+
+
+        Db::commit();
+
+        return json_encode([
+            'code' => 200,
+            'msg' => '成功'
+        ]);
+    }
+
+    public function show_photo(){
+        $info = Db::table('fishot_story')
+            ->select();
+        $r = [];
+        $i = 0;
+        echo "<h1>图片</h1></br>";
+        foreach ($info as $v){
+            $img = config('setting.image_root').$v['photo_url'];
+            if ($v['photo_url'] != ''){
+                echo '<img src="'.$img.'"></br></br>';
+                echo '故事：'.$v['story'].'</br></br>';
+            }
             $i++;
         }
     }
